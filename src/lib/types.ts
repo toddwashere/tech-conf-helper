@@ -1,3 +1,4 @@
+import type { QueryTrace } from "@/components/query-inspector";
 export type SessionKind = "talk" | "logistics";
 
 export interface SessionLink {
@@ -300,6 +301,7 @@ export interface SearchMeta {
   profile: EmbeddingsProfile;
   reranked: boolean;
   tookMs: number;
+  trace: QueryTrace[];
 }
 
 export interface SearchOptions {
@@ -311,6 +313,8 @@ export interface AskToolCall {
   toolId: string;
   params: Record<string, unknown>;
   resultTypes: string[];
+  /** The ES|QL the tool ran, when it was an ES|QL tool. */
+  esql: string | null;
 }
 
 export interface AskCitation {
@@ -344,4 +348,5 @@ export interface PulseResponse {
   memoriesCount: number;
   mySessions: number;
   notes: string[];
+  trace: QueryTrace[];
 }

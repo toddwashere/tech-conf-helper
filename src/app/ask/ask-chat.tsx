@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { VoiceInput } from "@/components/capture/voice-input";
+import { QueryInspector } from "@/components/query-inspector";
 import type { AskResponse } from "@/lib/types";
 import { Markdown } from "./markdown";
 
@@ -13,6 +15,10 @@ const SUGGESTIONS = [
 ];
 
 // Run without an LLM: the same Agent Builder tools, executed directly.
+// Verified with Claude Code: tools/list shows the 9 cc_* tools and cc_track_mix returns live data.
+// Single quotes keep ${ES_API_KEY} as a reference that Claude Code expands at runtime, so the key isn't saved in config.
+const MCP_COMMAND = `claude mcp add --transport http conference-memory "http://localhost:5601/api/agent_builder/mcp?namespace=cc" --header 'Authorization: ApiKey \${ES_API_KEY}'`;
+
 const DIRECT: { label: string; toolId: string; params: Record<string, string> }[] = [
   { label: "Talks Tue 2:50–3:20 PM", toolId: "cc.sessions_in_window", params: { from: "2026-11-10T21:50:00Z", to: "2026-11-10T22:20:00Z" } },
   { label: "My plan", toolId: "cc.my_plan", params: {} },
@@ -107,7 +113,7 @@ export function AskChat() {
       </ol>
 
       <form
-        className="sticky bottom-3 flex gap-2"
+        className="sticky bottom-0 -mx-1 flex gap-2 bg-background px-1 py-3"
         onSubmit={(e) => {
           e.preventDefault();
           ask(input);
@@ -120,6 +126,7 @@ export function AskChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
+        <VoiceInput onText={(t) => ask(t)} label="Talk" className="shrink-0" />
         <button
           type="submit"
           disabled={busy}
@@ -128,6 +135,8 @@ export function AskChat() {
           {busy ? "…" : "Ask"}
         </button>
       </form>
+
+      {noLlm && <McpCard />}
 
       <details className="rounded-xl border border-border bg-surface p-4" open={noLlm}>
         <summary className="cursor-pointer text-sm font-medium">Run the agent&apos;s tools directly (no LLM)</summary>
@@ -163,15 +172,22 @@ function Reply({ reply }: { reply: AskResponse | null }) {
     <div className="rounded-2xl border border-border bg-surface p-4">
       <Markdown text={reply.answer || "(no answer)"} />
       {reply.steps.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
           {reply.steps.map((s, i) => (
-            <span key={i} title={JSON.stringify(s.params)} className="rounded-full bg-surface-2 px-2 py-1 font-mono text-muted">
+            <span key={i} className="rounded-full bg-surface-2 px-2 py-1 font-mono text-muted">
               {s.toolId}
             </span>
           ))}
           <span className="px-1 py-1 text-muted">{(reply.tookMs / 1000).toFixed(1)} s</span>
         </div>
       )}
+      <QueryInspector
+        traces={reply.steps.map((s) => ({
+          label: `Tool ${s.toolId}`,
+          features: s.esql ? ["Agent Builder", "ES|QL"] : ["Agent Builder", ...s.resultTypes],
+          request: s.esql ?? s.params,
+        }))}
+      />
       {reply.citations.length > 0 && (
         <div className="mt-3 border-t border-border pt-2 text-sm">
           <p className="text-xs uppercase tracking-wider text-muted">Sessions cited</p>
@@ -192,7 +208,9 @@ function ToolTableView({ table }: { table: ToolTable }) {
   return (
     <div className="mt-3">
       <p className="font-mono text-xs text-muted">{table.toolId}</p>
-      {table.query && <pre className="mt-1 overflow-x-auto rounded bg-surface-2 p-2 text-xs text-muted">{table.query}</pre>}
+      {table.query && (
+        <QueryInspector traces={[{ label: `Tool ${table.toolId}`, features: ["Agent Builder", "ES|QL", "tools/_execute"], request: table.query }]} />
+      )}
       {table.rows.length === 0 ? (
         <p className="mt-2 text-sm text-muted">No rows.</p>
       ) : (
@@ -221,6 +239,29 @@ function ToolTableView({ table }: { table: ToolTable }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function McpCard() {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm">
+      <p className="font-medium">Ask from Claude Code instead (MCP)</p>
+      <p className="mt-1 text-muted">
+        The same agent tools are served by Agent Builder over MCP, so Claude can be the language model. Run this with{" "}
+        <code>ES_API_KEY</code> exported, then ask Claude about the conference:
+      </p>
+      <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded bg-background p-2 font-mono text-xs">{MCP_COMMAND}</pre>
+      <button
+        type="button"
+        onClick={() => {
+          navigator.clipboard?.writeText(MCP_COMMAND).then(() => setCopied(true));
+        }}
+        className="mt-2 rounded border border-border px-3 py-1 text-xs text-muted hover:border-accent hover:text-foreground"
+      >
+        {copied ? "Copied" : "Copy command"}
+      </button>
     </div>
   );
 }

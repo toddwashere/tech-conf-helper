@@ -22,7 +22,7 @@ steps:
         bool:
           filter:
             - term:
-                conference: "{{ inputs.conference }}"
+                conference: "{{ inputs.conference | default: 'kubecon-na-2026' }}"
             - terms:
                 type: [summary, note]
       sort:
@@ -38,17 +38,17 @@ steps:
     type: ai.prompt
     with:
       systemPrompt: "You write concise, useful conference trip reports in Markdown."
-      prompt: "Write a trip report for {{ inputs.audience }} about {{ inputs.conference }}. Sections: TL;DR (3 bullets), What I learned (grouped by theme, cite talk titles), What we should try, People and projects to follow. Tracks I planned to attend: {{ steps.per_track.output.values | json }}.\n\nMy summaries and notes:\n{% for h in steps.get_memories.output.hits.hits %}- [{{ h._source.type }}] {{ h._source.title }}: {{ h._source.text }}\n{% endfor %}"
+      prompt: "Write a trip report for {{ inputs.audience | default: 'my engineering manager' }} about {{ inputs.conference | default: 'kubecon-na-2026' }}. Sections: TL;DR (3 bullets), What I learned (grouped by theme, cite talk titles), What we should try, People and projects to follow. Tracks I planned to attend: {{ steps.per_track.output.values | json }}.\n\nMy summaries and notes:\n{% for h in steps.get_memories.output.hits.hits %}- [{{ h._source.type }}] {{ h._source.title }}: {{ h._source.text }}\n{% endfor %}"
   - name: save_report
     type: elasticsearch.index
     with:
       index: memories
-      id: "trip_report:{{ inputs.conference }}"
+      id: "trip_report:{{ inputs.conference | default: 'kubecon-na-2026' }}"
       document:
-        id: "trip_report:{{ inputs.conference }}"
+        id: "trip_report:{{ inputs.conference | default: 'kubecon-na-2026' }}"
         type: trip_report
-        conference: "{{ inputs.conference }}"
+        conference: "{{ inputs.conference | default: 'kubecon-na-2026' }}"
         source: workflow:trip-report
-        title: "Trip report: {{ inputs.conference }}"
+        title: "Trip report: {{ inputs.conference | default: 'kubecon-na-2026' }}"
         text: "{{ steps.write_report.output.content }}"
         created_at: "{{ execution.startedAt | date: '%Y-%m-%dT%H:%M:%S.%LZ' }}"

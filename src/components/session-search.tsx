@@ -112,7 +112,7 @@ export function SessionSearch() {
         ))}
       </div>
 
-      <SearchEngineToggle value={engine} onChange={setEngine} tookMs={result?.tookMs} />
+      <SearchEngineToggle value={engine} onChange={setEngine} meta={result} />
 
       <div className="mt-6" aria-live="polite">
         {status === "loading" && <p className="text-muted">Searching…</p>}

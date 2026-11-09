@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { QueryInspector } from "@/components/query-inspector";
 import type { PulseBucket, PulseResponse } from "@/lib/types";
 
 const TZ = "America/Denver";
@@ -67,6 +68,10 @@ export function PulseView() {
       <Card title="Room signals over time" wide subtitle="room-signals data stream, 15-minute buckets">
         {data.signals.length === 0 ? <Empty text="No room signals yet." /> : <SignalChart signals={data.signals} />}
       </Card>
+
+      <div className="sm:col-span-2">
+        <QueryInspector traces={data.trace} />
+      </div>
 
       <p className="text-xs text-muted sm:col-span-2">
         {data.memoriesCount} memories captured · refreshes every 15 s

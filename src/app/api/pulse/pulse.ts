@@ -1,5 +1,6 @@
 import type { Client, estypes } from "@elastic/elasticsearch";
 import { INDEX } from "@/lib/es/indices";
+import type { QueryTrace } from "@/components/query-inspector";
 import type { PulseBucket, PulseResponse } from "@/lib/types";
 
 const TZ = "America/Denver";
@@ -13,6 +14,10 @@ function hourLabel(keyAsString: string | undefined, key: number): string {
   const day = d.toLocaleDateString("en-US", { timeZone: TZ, weekday: "short" });
   const hour = d.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric" });
   return keyAsString ? `${day} ${hour}` : String(key);
+}
+
+function traceOf({ index, ...body }: estypes.SearchRequest) {
+  return { index: String(index), request: body };
 }
 
 /** Session ids the attendee engaged with: anything they captured a memory for, plus their plan choices. */
@@ -30,53 +35,78 @@ export async function getPulse(es: Client): Promise<PulseResponse> {
   const talk = { term: { kind: "talk" } };
   const mine = await mySessionIds(es);
 
-  const [schedule, signals, fingerprint, memories] = await Promise.all([
-    es.search({
-      index: INDEX.sessions,
-      size: 0,
-      query: talk,
-      aggs: {
-        tracks: { terms: { field: "tracks", size: 12 } },
-        hours: {
-          date_histogram: { field: "starts_at", calendar_interval: "hour", time_zone: TZ, min_doc_count: 1 },
-          aggs: { top: { bucket_sort: { sort: [{ _count: "desc" }], size: 8 } } },
+  const scheduleReq: estypes.SearchRequest = {
+    index: INDEX.sessions,
+    size: 0,
+    query: talk,
+    aggs: {
+      tracks: { terms: { field: "tracks", size: 12 } },
+      hours: {
+        date_histogram: { field: "starts_at", calendar_interval: "hour", time_zone: TZ, min_doc_count: 1 },
+        aggs: { top: { bucket_sort: { sort: [{ _count: "desc" }], size: 8 } } },
+      },
+    },
+  };
+  const signalsReq: estypes.SearchRequest = {
+    index: SIGNALS,
+    size: 0,
+    ignore_unavailable: true,
+    aggs: {
+      t: {
+        date_histogram: { field: "@timestamp", fixed_interval: "15m", time_zone: TZ, min_doc_count: 1 },
+        aggs: { s: { terms: { field: "signal", size: 5 } } },
+      },
+    },
+  };
+  const fingerprintReq: estypes.SearchRequest = {
+    index: INDEX.sessions,
+    size: 0,
+    query: { bool: { filter: [talk, { terms: { id: mine } }] } },
+    aggs: {
+      tracks: { significant_terms: { field: "tracks", size: 6, min_doc_count: 1, background_filter: talk } },
+      words: {
+        significant_text: {
+          field: "description",
+          size: 10,
+          min_doc_count: 2,
+          filter_duplicate_text: true,
+          background_filter: talk,
         },
       },
-    }),
-    es
-      .search({
-        index: SIGNALS,
-        size: 0,
-        ignore_unavailable: true,
-        aggs: {
-          t: {
-            date_histogram: { field: "@timestamp", fixed_interval: "15m", time_zone: TZ, min_doc_count: 1 },
-            aggs: { s: { terms: { field: "signal", size: 5 } } },
-          },
-        },
-      })
-      .catch(() => null),
-    mine.length
-      ? es.search({
-          index: INDEX.sessions,
-          size: 0,
-          query: { bool: { filter: [talk, { terms: { id: mine } }] } },
-          aggs: {
-            tracks: { significant_terms: { field: "tracks", size: 6, min_doc_count: 1, background_filter: talk } },
-            words: {
-              significant_text: {
-                field: "description",
-                size: 10,
-                min_doc_count: 2,
-                filter_duplicate_text: true,
-                background_filter: talk,
-              },
-            },
-          },
-        })
-      : null,
+    },
+  };
+
+  const [schedule, signals, fingerprint, memories] = await Promise.all([
+    es.search(scheduleReq),
+    es.search(signalsReq).catch(() => null),
+    mine.length ? es.search(fingerprintReq) : null,
     es.count({ index: INDEX.memories }),
   ]);
+
+  const trace: QueryTrace[] = [
+    {
+      label: "Schedule mix: talks per track and the busiest hours in Mountain time",
+      features: ["terms", "date_histogram", "time_zone America/Denver", "bucket_sort"],
+      ...traceOf(scheduleReq),
+      tookMs: schedule.took,
+    },
+    {
+      label: "Room signals over time from the time-series data stream",
+      features: ["data stream", "date_histogram", "terms"],
+      ...traceOf(signalsReq),
+      tookMs: signals?.took ?? null,
+    },
+    ...(fingerprint
+      ? [
+          {
+            label: `Your fingerprint: your ${mine.length} sessions vs every talk`,
+            features: ["significant_terms", "significant_text", "background_filter"],
+            ...traceOf(fingerprintReq),
+            tookMs: fingerprint.took,
+          },
+        ]
+      : []),
+  ];
 
   const agg = <T>(r: estypes.SearchResponse | null, name: string) => r?.aggregations?.[name] as T | undefined;
   const toBuckets = (b?: Buckets): PulseBucket[] => (b?.buckets ?? []).map((x) => ({ key: String(x.key), count: x.doc_count }));
@@ -110,5 +140,6 @@ export async function getPulse(es: Client): Promise<PulseResponse> {
     memoriesCount: memories.count,
     mySessions: mine.length,
     notes,
+    trace,
   };
 }

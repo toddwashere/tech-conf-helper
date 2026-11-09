@@ -76,8 +76,10 @@ The in-app pages are `/ask` (chat through the Agent Builder converse API) and `/
 Agent Builder serves the copilot's tools over MCP at `{KIBANA_URL}/api/agent_builder/mcp`. Add `?namespace=cc` to expose only the Conference Memory tools:
 
 ```bash
-claude mcp add --transport http conference-memory "http://localhost:5601/api/agent_builder/mcp?namespace=cc" --header "Authorization: ApiKey $ES_API_KEY"
+claude mcp add --transport http conference-memory "http://localhost:5601/api/agent_builder/mcp?namespace=cc" --header 'Authorization: ApiKey ${ES_API_KEY}'
 ```
+
+The single quotes keep `${ES_API_KEY}` as a reference that Claude Code expands when it connects, so the key isn't written into your config. Export `ES_API_KEY` in the shell that starts Claude. This was verified with `claude -p` in a scratch directory: `tools/list` returned the 9 `cc_*` tools, and `cc_track_mix` for Tuesday answered "Maintainer Track: 30 talks".
 
 Then ask Claude "what's on at 3 PM Tuesday at KubeCon?" or "what did I learn about eBPF?". Claude calls `cc_sessions_in_window`, `cc_search_memories`, and the others. This works even without a Kibana LLM connector, because Claude is the LLM.
 
@@ -85,4 +87,10 @@ Then ask Claude "what's on at 3 PM Tuesday at KubeCon?" or "what did I learn abo
 
 `EMBEDDINGS=elser` (default) searches `sessions` with ELSER, which runs locally and offline. `EMBEDDINGS=jina` searches `sessions-jina`, embedded by Jina on the Elastic Inference Service, which is multilingual: a Spanish query like "seguridad de contenedores en tiempo de ejecución" finds English talks. The search box can switch per query. Jina needs Cloud Connect: in Kibana, open Stack Management → Cloud Connect, paste an Elastic Cloud API key, then run `npm run elastic:setup jina`.
 
-Reranking (`text_similarity_reranker` over the RRF results) is a checkbox under the search box. Locally it uses `.rerank-v1-elasticsearch` on CPU, which takes about 3.5 s for the top 10 on a laptop, so it's off by default.
+Reranking (`text_similarity_reranker` over the RRF results) is a checkbox under the search box. With Jina it uses `.jina-reranker-v3.5` on EIS over the top 50 and is on by default (search takes 0.3–1 s end to end). With ELSER it uses `.rerank-v1-elasticsearch` on the laptop's CPU, which takes about 3.5 s for the top 10, so it's off by default.
+
+Measured on the demo laptop: `_reindex` of 830 sessions into `sessions-jina` took 70 s with Jina on EIS, against about 8 minutes for ELSER locally.
+
+### LLM for the agent and workflows
+
+`npm run elastic:setup connector` picks the LLM in this order: `KIBANA_LLM_CONNECTOR_ID`, then the first Elastic Managed LLM on EIS that answers a probe (Claude Sonnet 5, then gp-llm-v2, and so on), then an OpenAI connector from `OPENAI_API_KEY`. It sets the winner as Kibana's default AI connector and pins the workflows' AI steps to it. EIS trial quotas are per model, and each agent turn sends about 8k input tokens, so `/ask` falls back to the next managed LLM when one returns 429.
