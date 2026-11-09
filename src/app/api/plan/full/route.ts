@@ -5,6 +5,7 @@ import { ensurePlanReady } from "@/lib/plan/infra";
 import { recordSignal } from "@/lib/plan/signals";
 import { getSessions } from "@/lib/plan/store";
 import { buildPlanView } from "@/lib/plan/view";
+import type { QueryTrace } from "@/components/query-inspector";
 
 const schema = z.object({
   sessionId: z.string().min(1).max(200),
@@ -24,13 +25,18 @@ export async function POST(request: Request) {
     const session = (await getSessions(es, [sessionId])).get(sessionId);
     if (!session) return Response.json({ error: "Session not found." }, { status: 404 });
     const now = getNow(at);
-    const recorded = await recordSignal(es, session, signal, now);
-    const slots = await buildPlanView(es, day ?? null, now);
+    const writeTrace: QueryTrace[] = [];
+    const recorded = await recordSignal(es, session, signal, now, "app", writeTrace);
+    const trace: QueryTrace[] = [...writeTrace];
+    const slots = await buildPlanView(es, day ?? null, now, trace);
     const slot = slots.find((s) => s.choices.some((c) => c.session.id === sessionId)) ?? null;
+    // The reroute panel shows the write that triggered it, then the queries that decided it.
+    if (slot?.reroute) slot.reroute.trace = [...writeTrace, ...(slot.reroute.trace ?? [])];
     return Response.json({
       signal: recorded,
       reroute: slot?.reroute ?? null,
-      plan: { now: now.toISOString(), demoClock: isDemoClock(at), day: day ?? null, slots },
+      trace,
+      plan: { now: now.toISOString(), demoClock: isDemoClock(at), day: day ?? null, slots, trace },
     });
   } catch (error) {
     console.error("[plan] room full failed", error);

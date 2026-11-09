@@ -2,6 +2,7 @@ import { getNow } from "@/lib/clock";
 import { getEs } from "@/lib/es/client";
 import { ensurePlanReady } from "@/lib/plan/infra";
 import { roomActivity } from "@/lib/plan/signals";
+import type { QueryTrace } from "@/components/query-inspector";
 
 /** Room-signal activity for a day up to the demo clock: date_histogram × signal, plus the busiest rooms. */
 export async function GET(request: Request) {
@@ -11,7 +12,9 @@ export async function GET(request: Request) {
   try {
     const es = getEs();
     await ensurePlanReady(es);
-    return Response.json(await roomActivity(es, day, getNow(url.searchParams.get("at"))));
+    const trace: QueryTrace[] = [];
+    const activity = await roomActivity(es, day, getNow(url.searchParams.get("at")), trace);
+    return Response.json({ ...activity, trace });
   } catch (error) {
     console.error("[plan] activity failed", error);
     return Response.json({ error: "Room activity is unavailable." }, { status: 502 });

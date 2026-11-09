@@ -3,6 +3,7 @@ import { DEFAULT_CONFERENCE } from "../conference";
 import { ROOM_SIGNALS_STREAM } from "../es/indices";
 import { roomLocation } from "../geo";
 import { DEFAULT_TIME_ZONE, localToZonedIso } from "../time";
+import { tracedSearch, type Tracer } from "./trace";
 import type { RoomActivity, RoomSignalDoc, RoomSignalKind, SessionDoc } from "../types";
 
 /** A `full` signal counts for this long. Rooms empty out between talks. */
@@ -15,6 +16,7 @@ export async function recordSignal(
   signal: RoomSignalKind,
   at: Date,
   source = "app",
+  trace?: Tracer,
 ): Promise<RoomSignalDoc> {
   const doc: RoomSignalDoc = {
     "@timestamp": at.toISOString(),
@@ -27,14 +29,29 @@ export async function recordSignal(
     location: roomLocation(session.room, session.building),
   };
   await es.index({ index: ROOM_SIGNALS_STREAM, op_type: "create", document: doc, refresh: "wait_for" });
+  trace?.push({
+    label: `Append a "${signal}" signal (never updates the session)`,
+    features: ["data stream", "op_type: create", "geo_point"],
+    index: ROOM_SIGNALS_STREAM,
+    request: doc,
+    tookMs: null,
+  });
   return doc;
 }
 
 /** Latest `full` signal per session within the window before `now` (time-series range + terms/max agg). */
-export async function recentFullSignals(es: Client, sessionIds: string[], now: Date): Promise<Map<string, string>> {
+export async function recentFullSignals(
+  es: Client,
+  sessionIds: string[],
+  now: Date,
+  trace?: Tracer,
+): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (sessionIds.length === 0) return out;
-  const res = await es.search({
+  const res = await tracedSearch(es, trace, {
+    label: `Is the room full? Latest "full" signal per talk in the last ${FULL_SIGNAL_WINDOW_MIN} min`,
+    features: ["data stream", "time range", "terms agg", "max agg"],
+  }, {
     index: ROOM_SIGNALS_STREAM,
     size: 0,
     query: {
@@ -90,11 +107,14 @@ export async function clearSignals(
 }
 
 /** Time-series view of `room-signals`: 30-minute date_histogram split by signal, and top rooms by check-ins. */
-export async function roomActivity(es: Client, day: string, now: Date): Promise<RoomActivity> {
+export async function roomActivity(es: Client, day: string, now: Date, trace?: Tracer): Promise<RoomActivity> {
   const from = localToZonedIso(`${day}T07:00`);
   const dayEnd = localToZonedIso(`${day}T20:00`);
   const until = now.toISOString() < new Date(dayEnd).toISOString() ? now.toISOString() : new Date(dayEnd).toISOString();
-  const res = await es.search({
+  const res = await tracedSearch(es, trace, {
+    label: "Room activity: signals per 30 min, split by type, plus busiest rooms",
+    features: ["data stream", "time range", "date_histogram", "terms agg", "filter agg"],
+  }, {
     index: ROOM_SIGNALS_STREAM,
     size: 0,
     query: { range: { "@timestamp": { gte: from, lte: until } } },

@@ -4,6 +4,7 @@ import { getEs } from "@/lib/es/client";
 import { ensurePlanReady } from "@/lib/plan/infra";
 import { addChoice, getSessions, removeChoice, reorderSlot } from "@/lib/plan/store";
 import { buildPlanView } from "@/lib/plan/view";
+import type { QueryTrace } from "@/components/query-inspector";
 import type { PlanResponse } from "@/lib/types";
 
 const DAY = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -13,7 +14,9 @@ async function view(day: string | null, at: string | null): Promise<PlanResponse
   const es = getEs();
   await ensurePlanReady(es);
   const now = getNow(at);
-  return { now: now.toISOString(), demoClock: isDemoClock(at), day, slots: await buildPlanView(es, day, now) };
+  const trace: QueryTrace[] = [];
+  const slots = await buildPlanView(es, day, now, trace);
+  return { now: now.toISOString(), demoClock: isDemoClock(at), day, slots, trace };
 }
 
 function fail(scope: string, error: unknown) {
