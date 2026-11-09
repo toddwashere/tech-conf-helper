@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlanChoice, RerouteCandidate, SessionDoc } from "../types";
-import { pickReroute, rankSimilar } from "./reroute";
+import { pickReroute, rankSimilar, timing } from "./reroute";
 
 function session(id: string, over: Partial<SessionDoc> = {}): SessionDoc {
   return {
@@ -46,8 +46,10 @@ describe("pickReroute", () => {
     const r = pickReroute([choice(0, session("a"), true), choice(1, session("b", { room: "Grand Ballroom H" }))], []);
     expect(r?.kind).toBe("backup");
     expect(r?.session?.id).toBe("b");
-    expect(r?.reason).toContain("Plan A “Talk a” was reported full at 2:41 PM");
+    expect(r?.reason).toContain("Plan A “Talk a” was reported full at 2:41 PM (room-signals");
     expect(r?.reason).toContain("Go to Plan B");
+    expect(r?.reason).toMatch(/\d+ m away, about a \d+ min walk \(geo\)/);
+    expect(r?.reason).toContain("your next ranked backup");
   });
 
   it("skips full backups and says so", () => {
@@ -72,6 +74,9 @@ describe("pickReroute", () => {
     expect(r?.session?.id).toBe("palace");
     expect(r?.reason).toContain("every backup is full");
     expect(r?.reason).toContain("same building (Salt Palace)");
+    expect(r?.reason).toContain("closest in meaning to your Plan A (semantic)");
+    expect(r?.reason).toContain("starts with your slot (time range)");
+    expect(r?.reason).toContain("60 m away, about a 1 min walk (geo)");
   });
 
   it("never suggests a talk that's already in the plan or full", () => {
@@ -87,6 +92,15 @@ describe("pickReroute", () => {
     const r = pickReroute([choice(0, session("a"), true)], []);
     expect(r?.kind).toBe("none");
     expect(r?.session).toBeNull();
+  });
+});
+
+describe("timing", () => {
+  it("describes a talk that started before the slot", () => {
+    const a = session("a");
+    const long = session("w", { starts_at: "2026-11-10T14:30:00-07:00", ends_at: "2026-11-10T15:30:00-07:00" });
+    expect(timing(long, a)).toBe("already running, 40 min left at your slot start");
+    expect(timing(session("l", { starts_at: "2026-11-10T15:00:00-07:00" }), a)).toBe("starts 10 min into your slot");
   });
 });
 
