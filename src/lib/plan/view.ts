@@ -16,6 +16,7 @@ import { nearbyRooms, roomPoint } from "./rooms";
 import { recentFullSignals } from "./signals";
 import { computeConflicts, rankLabel } from "./slots";
 import { getSessions, listPlanDocs } from "./store";
+import { tracedSearch, type Tracer } from "./trace";
 
 /** How far you'd walk for a similar talk. Covers Salt Palace ↔ Hyatt Regency, excludes off-site venues. */
 export const NEARBY_RADIUS = "600m";
@@ -36,8 +37,9 @@ export async function similarTalks(
   slot: { slotStart: string; slotEnd: string },
   excludeIds: string[],
   now: Date,
+  trace?: Tracer,
 ): Promise<RerouteCandidate[]> {
-  const nearby = await nearbyRooms(es, await roomPoint(es, planA.room), NEARBY_RADIUS);
+  const nearby = await nearbyRooms(es, await roomPoint(es, planA.room), NEARBY_RADIUS, trace);
   const distance = new Map(nearby.map((n) => [n.room.name, n.distanceM]));
   if (distance.size === 0) return [];
 
@@ -49,7 +51,10 @@ export async function similarTalks(
     { range: { starts_at: { lt: slot.slotEnd } } },
     { range: { ends_at: { gt: addMinutes(new Date(slot.slotStart), 10).toISOString() } } },
   ];
-  const res = await es.search<SessionDoc>({
+  const res = await tracedSearch<SessionDoc>(es, trace, {
+    label: "Talks closest in meaning to Plan A, open, in the same slot, in a nearby room",
+    features: ["semantic_text", "semantic query", "time range", "terms (nearby rooms)"],
+  }, {
     index: INDEX.sessions,
     size: 10,
     query: {
@@ -62,7 +67,7 @@ export async function similarTalks(
     _source: SEARCH_SOURCE_FIELDS,
   });
   const hits = res.hits.hits.flatMap((h) => (h._source ? [{ s: h._source, score: h._score ?? 0 }] : []));
-  const signals = await recentFullSignals(es, hits.map((h) => h.s.id), now);
+  const signals = await recentFullSignals(es, hits.map((h) => h.s.id), now, trace);
   return hits
     .filter((h) => !signals.has(h.s.id))
     .map((h) => ({
@@ -73,10 +78,12 @@ export async function similarTalks(
     }));
 }
 
-export async function buildPlanView(es: Client, day: string | null, now: Date): Promise<PlanSlotView[]> {
-  const docs = await listPlanDocs(es, day);
+export async function buildPlanView(es: Client, day: string | null, now: Date, trace?: Tracer): Promise<PlanSlotView[]> {
+  const docs = await listPlanDocs(es, day, trace);
   const sessions = await getSessions(es, [...new Set(docs.map((d) => d.session_id))]);
-  const signals = await recentFullSignals(es, [...sessions.keys()], now);
+  const fullTrace: Tracer = [];
+  const signals = await recentFullSignals(es, [...sessions.keys()], now, fullTrace);
+  trace?.push(...fullTrace);
 
   const grouped = new Map<string, { slotStart: string; slotEnd: string; choices: PlanChoice[] }>();
   for (const d of docs) {
@@ -102,10 +109,13 @@ export async function buildPlanView(es: Client, day: string | null, now: Date): 
       const planA = s.choices[0];
       if (planA?.full) {
         const needSimilar = s.choices.slice(1).every((c) => c.full);
+        const slotTrace: Tracer = [...fullTrace];
         const similar = needSimilar
-          ? await similarTalks(es, planA.session, s, s.choices.map((c) => c.session.id), now)
+          ? await similarTalks(es, planA.session, s, s.choices.map((c) => c.session.id), now, slotTrace)
           : [];
-        reroute = pickReroute(s.choices, similar);
+        const picked = pickReroute(s.choices, similar);
+        if (picked) reroute = { ...picked, trace: slotTrace };
+        if (trace && slotTrace.length > fullTrace.length) trace.push(...slotTrace.slice(fullTrace.length));
       }
       return { ...s, conflictsWith: conflicts.get(s.slotStart) ?? [], reroute };
     }),
@@ -113,12 +123,21 @@ export async function buildPlanView(es: Client, day: string | null, now: Date): 
 }
 
 /** Talks in progress or starting within `windowMin` of `now`, nearest room first (time range + geo sort). */
-export async function nowNext(es: Client, now: Date, fromRoom: string | null, windowMin = 30): Promise<NowNextResponse> {
+export async function nowNext(
+  es: Client,
+  now: Date,
+  fromRoom: string | null,
+  windowMin = 30,
+  trace: Tracer = [],
+): Promise<NowNextResponse> {
   const from = await roomPoint(es, fromRoom);
-  const rooms = await nearbyRooms(es, from, "5km");
+  const rooms = await nearbyRooms(es, from, "5km", trace);
   const distance = new Map(rooms.map((r) => [r.room.name, r.distanceM]));
   const nowIso = now.toISOString();
-  const res = await es.search<SessionDoc>({
+  const res = await tracedSearch<SessionDoc>(es, trace, {
+    label: `Talks on now or starting in the next ${windowMin} min`,
+    features: ["time range", "bool should"],
+  }, {
     index: INDEX.sessions,
     size: 200,
     query: {
@@ -134,7 +153,7 @@ export async function nowNext(es: Client, now: Date, fromRoom: string | null, wi
     _source: SEARCH_SOURCE_FIELDS,
   });
   const sessions = res.hits.hits.flatMap((h) => (h._source ? [h._source] : []));
-  const signals = await recentFullSignals(es, sessions.map((s) => s.id), now);
+  const signals = await recentFullSignals(es, sessions.map((s) => s.id), now, trace);
   const items: NowNextItem[] = sessions
     // Multi-hour expo blocks drown out real talks; keep sessions up to 2 hours.
     .filter((s) => new Date(s.ends_at).getTime() - new Date(s.starts_at).getTime() <= 2 * 3_600_000)
@@ -153,5 +172,5 @@ export async function nowNext(es: Client, now: Date, fromRoom: string | null, wi
         (a.distanceM ?? Infinity) - (b.distanceM ?? Infinity) ||
         a.session.starts_at.localeCompare(b.session.starts_at),
     );
-  return { now: nowIso, from: fromRoom, items };
+  return { now: nowIso, from: fromRoom, items, trace };
 }

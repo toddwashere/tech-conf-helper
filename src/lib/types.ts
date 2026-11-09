@@ -1,4 +1,6 @@
 import type { QueryTrace } from "@/components/query-inspector";
+
+
 export type SessionKind = "talk" | "logistics";
 
 export interface SessionLink {
@@ -184,6 +186,7 @@ export interface RerouteResult {
   rank: number | null;
   distanceM: number | null;
   reason: string;
+  trace?: QueryTrace[];
 }
 
 export interface PlanSlotView {
@@ -199,6 +202,7 @@ export interface PlanResponse {
   demoClock: boolean;
   day: string | null;
   slots: PlanSlotView[];
+  trace?: QueryTrace[];
 }
 
 export interface NowNextItem {
@@ -213,6 +217,7 @@ export interface NowNextResponse {
   now: string;
   from: string | null;
   items: NowNextItem[];
+  trace?: QueryTrace[];
 }
 
 // --- WS-B capture: memories written while sitting in a talk ---
@@ -259,6 +264,7 @@ export interface RoomActivity {
   simulated: number;
   buckets: ActivityBucket[];
   busiestRooms: { room: string; checkins: number; full: number }[];
+  trace?: QueryTrace[];
 }
 
 export interface TripReportSession {

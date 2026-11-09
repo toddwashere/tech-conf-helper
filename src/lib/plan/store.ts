@@ -5,6 +5,7 @@ import { SEARCH_SOURCE_FIELDS } from "../search";
 import { localToZonedIso } from "../time";
 import type { PlanDoc, SessionDoc } from "../types";
 import { findSlotFor } from "./slots";
+import { tracedSearch, type Tracer } from "./trace";
 
 const CONF = DEFAULT_CONFERENCE.id;
 
@@ -19,14 +20,17 @@ function nextDay(day: string): string {
 }
 
 /** All plan rows (single demo user), optionally for one conference day, ordered by slot then rank. */
-export async function listPlanDocs(es: Client, day?: string | null): Promise<PlanDoc[]> {
+export async function listPlanDocs(es: Client, day?: string | null, trace?: Tracer): Promise<PlanDoc[]> {
   const filter: object[] = [{ term: { conference: CONF } }];
   if (day) {
     filter.push({
       range: { slot_start: { gte: localToZonedIso(`${day}T00:00`), lt: localToZonedIso(`${nextDay(day)}T00:00`) } },
     });
   }
-  const res = await es.search<PlanDoc>({
+  const res = await tracedSearch<PlanDoc>(es, trace, {
+    label: "Your plan for the day, by slot then rank",
+    features: ["time range", "sort"],
+  }, {
     index: INDEX.plans,
     size: 1000,
     query: { bool: { filter } },

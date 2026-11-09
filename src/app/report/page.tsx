@@ -1,3 +1,4 @@
+import { MemorySearch } from "@/components/capture/memory-search";
 import { TripReportView } from "@/components/capture/trip-report-view";
 
 export default function ReportPage() {
@@ -8,6 +9,9 @@ export default function ReportPage() {
         <h1 className="mt-2 text-3xl font-semibold">What you took home</h1>
         <p className="mt-2 text-muted">Summaries, notes, ratings, and people you met, by day. Built from your memories in Elasticsearch.</p>
       </header>
+      <div className="mb-8">
+        <MemorySearch />
+      </div>
       <TripReportView />
     </main>
   );

@@ -8,6 +8,7 @@ import { CaptionPanel } from "./caption-panel";
 import { ContactsPanel } from "./contacts-panel";
 import { NotesPanel } from "./notes-panel";
 import { RatingPanel } from "./rating-panel";
+import { RelatedPanel } from "./related-panel";
 import { SummaryPanel } from "./summary-panel";
 import { useNotes } from "./use-notes";
 import { useTranscriptSync } from "./use-transcript-sync";
@@ -64,8 +65,9 @@ export function SessionCapture({ sessionId }: { sessionId: string }) {
         <ContactsPanel sessionId={sessionId} />
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <SummaryPanel sessionId={sessionId} beforeSummarize={beforeSummarize} />
+        <RelatedPanel sessionId={sessionId} refreshKey={notes.notes.length} />
       </div>
     </main>
   );

@@ -27,7 +27,7 @@ Agents, tools, workflows, and dashboards are created by scripts in `scripts/elas
 
 ## D4. LLM
 
-Preferred: Elastic Managed LLM via EIS (Cloud Connect), if the trial exposes it. Fallback: an OpenAI connector in Kibana using `OPENAI_API_KEY`. App-side AI calls (caption translation) use OpenAI directly until Agent Builder covers them.
+The local cluster is onboarded to Cloud Connect, and EIS is enabled. Jina v5 embeddings and the Jina rerankers work. Every EIS chat/completion endpoint returns 403 on this trial, so the LLM comes from an OpenAI connector using `OPENAI_API_KEY`, which is pending from the user. Agent Builder converse accepts an inference endpoint ID as `connector_id`. Every AI feature needs a non-AI fallback (extractive highlights, grouped report), plus the MCP path where Claude itself is the LLM. Local Ollama models were tried and rejected: too slow, and too hard on the battery.
 
 ## D5. Embedding cost
 

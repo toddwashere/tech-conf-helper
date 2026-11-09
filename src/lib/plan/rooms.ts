@@ -3,6 +3,7 @@ import { DEFAULT_CONFERENCE } from "../conference";
 import { ROOMS_INDEX } from "../es/indices";
 import { BUILDINGS, roomId } from "../geo";
 import type { GeoPoint, RoomDoc } from "../types";
+import { tracedSearch, type Tracer } from "./trace";
 
 export async function getRoom(es: Client, room: string, conference: string = DEFAULT_CONFERENCE.id): Promise<RoomDoc | null> {
   const res = await es.get<RoomDoc>({ index: ROOMS_INDEX, id: roomId(conference, room) }, { ignore: [404] });
@@ -27,9 +28,13 @@ export async function nearbyRooms(
   es: Client,
   from: GeoPoint,
   radius = "600m",
+  trace?: Tracer,
   conference: string = DEFAULT_CONFERENCE.id,
 ): Promise<NearbyRoom[]> {
-  const res = await es.search<RoomDoc>({
+  const res = await tracedSearch<RoomDoc>(es, trace, {
+    label: `Rooms within ${radius}, nearest first`,
+    features: ["geo_distance", "_geo_distance sort", "geo_point"],
+  }, {
     index: ROOMS_INDEX,
     size: 500,
     query: {

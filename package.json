@@ -11,6 +11,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "import": "tsx --env-file=.env.local scripts/import.ts",
     "seed:demo": "tsx --env-file=.env.local scripts/seed-demo.ts",
+    "seed:memories": "tsx --env-file=.env.local scripts/seed-memories.ts",
     "ci": "npm run typecheck && npm run lint && npm test",
     "elastic:setup": "tsx --env-file=.env.local scripts/elastic/setup.ts"
   },

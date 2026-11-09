@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { QueryInspector } from "@/components/query-inspector";
 import { useCallback, useEffect, useState } from "react";
 import { formatDayInZone, formatTimeInZone } from "@/lib/time";
 import type { NowNextResponse, PlanChoice, PlanResponse, PlanSlotView, RerouteResult, RoomActivity } from "@/lib/types";
@@ -223,6 +224,7 @@ function ReroutePanel({
           {busy === `add:${s.id}` ? "Adding…" : "Add to this slot"}
         </button>
       )}
+      <QueryInspector traces={reroute.trace} />
     </div>
   );
 }
@@ -281,18 +283,18 @@ function ChoiceRow({
             type="button"
             disabled={disabled}
             onClick={onFull}
-            className="rounded-lg border border-danger/50 px-3 py-1.5 font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
+            className="min-h-11 flex-1 rounded-lg border border-danger/50 px-4 py-2 font-medium text-danger hover:bg-danger/10 disabled:opacity-50 sm:min-h-0 sm:flex-none sm:px-3 sm:py-1.5"
           >
             {busy === `full:${s.id}` ? "Reporting…" : "Room full"}
           </button>
         )}
-        <button type="button" aria-label="Move up" disabled={disabled || first} onClick={() => onMove("up")} className="rounded-lg border border-border px-2.5 py-1.5 disabled:opacity-30">
+        <button type="button" aria-label="Move up" disabled={disabled || first} onClick={() => onMove("up")} className="min-h-11 min-w-11 rounded-lg border border-border px-2.5 py-1.5 disabled:opacity-30 sm:min-h-0 sm:min-w-0">
           ↑
         </button>
-        <button type="button" aria-label="Move down" disabled={disabled || last} onClick={() => onMove("down")} className="rounded-lg border border-border px-2.5 py-1.5 disabled:opacity-30">
+        <button type="button" aria-label="Move down" disabled={disabled || last} onClick={() => onMove("down")} className="min-h-11 min-w-11 rounded-lg border border-border px-2.5 py-1.5 disabled:opacity-30 sm:min-h-0 sm:min-w-0">
           ↓
         </button>
-        <button type="button" aria-label="Remove" disabled={disabled} onClick={onRemove} className="rounded-lg border border-border px-2.5 py-1.5 text-muted hover:text-foreground disabled:opacity-30">
+        <button type="button" aria-label="Remove" disabled={disabled} onClick={onRemove} className="min-h-11 min-w-11 rounded-lg border border-border px-2.5 py-1.5 text-muted hover:text-foreground disabled:opacity-30 sm:min-h-0 sm:min-w-0">
           ✕
         </button>
       </div>
@@ -342,6 +344,7 @@ function NowNext({ at, refreshKey }: { at: string | null; refreshKey: number }) 
           ))}
         </ul>
       )}
+      {data && <QueryInspector traces={data.trace} />}
     </section>
   );
 }
@@ -406,6 +409,7 @@ function RoomActivityStrip({ day, at, refreshKey }: { day: string; at: string | 
           Busiest: {data.busiestRooms.slice(0, 3).map((r) => `${r.room} (${r.checkins})`).join(", ")}
         </p>
       )}
+      <QueryInspector traces={data.trace} />
     </section>
   );
 }
