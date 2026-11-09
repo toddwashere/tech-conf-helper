@@ -1,44 +1,25 @@
 # General Plan
 
-**Demo path:** paste the KubeCon URL → search → plan A/B/C → room full reroute → captions and summary → ask with citations → trip report.
+**Demo path:** paste the KubeCon URL → hybrid search (Jina, multilingual) → plan A/B/C → tap room full → geo-aware reroute, signal shows on the live Kibana dashboard → captions and summary (Workflow) → ask the Conference Copilot (Agent Builder), also from Claude Desktop via MCP → trip report.
 
-**Strategy:** the foundation is one workstream. Parallel sessions start only after phase 01 is merged, and touch separate folders.
+Decisions live in `docs/decisions.md`. The main planning chat owns that file and this one.
 
 ## Phases
 
-| # | Phase | Blocking? | Parallel with | Target time | Status |
-|---|-------|-----------|---------------|-------------|--------|
-| 01 | Foundation: Next.js app, ES client and indices, inference endpoint, Sessionize import, search API and page, CI, README | Yes | — | 11:00–12:15 | In progress |
-| 02 | Plans A/B/C and room-full reroute (`src/app/plan`, `src/lib/plan`) | No | 03 | 12:15–13:15 | |
-| 03 | Live captions, notes, summary (`src/app/session`, `src/lib/capture`) | No | 02 | 12:15–14:00 | |
-| 04 | Tool layer and talk to your data (`src/lib/tools`, `src/app/ask`) | No | — | 14:00–15:30 | |
-| 05 | Trip report; AI import mapping and preview | No | — | 15:30–16:15 | |
-| 06 | One stretch feature or buffer | No | — | 16:15–16:45 | |
-| 07 | Freeze, polish, seed, README, fallback clip, submit | — | — | 16:45–17:15 | |
+| # | Phase | Status |
+|---|-------|--------|
+| 01 | Foundation: app, indices, Sessionize import, hybrid search, CI | Done (`8d45e86`) |
+| WS-A | Plans A/B/C, room-full reroute, `room-signals` time-series, building geo, "now / next" | Parallel |
+| WS-B | Capture: live captions, local-first notes, transcripts into `memories`, session page | Parallel |
+| WS-C | Elastic platform: Jina via EIS + toggle, reranker, Agent Builder agent and tools, MCP, Workflows, dashboards and Pulse page | Parallel; Jina waits on Cloud Connect |
+| 05 | Integration: Ask page on Agent Builder, trip report, AI import mapping and preview | After A/B/C merge |
+| 06 | Freeze 4:45, polish, seed, README, fallback clip, submit 5:15 | — |
 
-**Cut order if behind:** stretch → AI import mapping → translation → contact capture. Never cut search, reroute, captions, or Ask.
+**Cut order if behind:** AI import mapping → trip report Workflow (do it in-app) → Pulse page (keep the Kibana dashboard) → caption translation. Never cut: hybrid search, reroute, captions, Agent Builder ask.
 
-## Phase 01 checklist
-
-- [ ] Next.js + TypeScript + Tailwind scaffold, dark by default
-- [ ] `.env.example`; ES URL and key from `start-local`; OpenAI key
-- [ ] `src/lib/es/client.ts`, `src/lib/es/indices.ts` with mappings for `sessions`, `speakers`, `memories`, `plans`
-- [ ] Inference endpoint with explicit ID; `semantic_text` on session description and memory text
-- [ ] Sessionize importer (pure mapping function + bulk index), runnable from a script and an API route
-- [ ] Focused tests: Sessionize mapping and time zone handling
-- [ ] `/api/search` with RRF hybrid retriever and filters (day, track, level)
-- [ ] Search page with results, loading, empty, and error states
-- [ ] GitHub Actions CI: typecheck, lint, tests
-- [ ] README: pitch, setup, data source credit, AI disclosure
-
-## Requirements from the brief
+## Requirements (from the brief)
 
 - Elasticsearch is the core data layer.
-- Smart use of search (hybrid).
+- Smart use of search: keyword, semantic, vector, hybrid, time-series, geo, aggregations.
 - Makes conferences easier and more accessible.
-- Public repo, README with setup, AI disclosure.
-- No private or personal data.
-
-## Cut on purpose
-
-Matchmaker and crowd map (need many users), full offline PWA (time), X API (access unknown), Radar (cluster setup time).
+- Public repo, README with setup, AI disclosure, no private data.

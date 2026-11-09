@@ -9,6 +9,7 @@ Stack: Next.js (App Router) + TypeScript + Tailwind, with Elasticsearch as the o
 **Key files**
 - `brief/brief.md`: rubric, scope, demo script. Read it before building any feature.
 - `plans/00-general.md`: phases and status.
+- `docs/decisions.md`: binding decisions and who owns which files. Read it before building anything.
 - `docs/feature-backlog.md`: every idea, ranked.
 
 Workflow adapted from [juanlizarazo/hackathon-starter-kit](https://github.com/juanlizarazo/hackathon-starter-kit) (MIT).
