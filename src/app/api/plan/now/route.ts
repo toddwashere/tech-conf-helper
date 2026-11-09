@@ -1,7 +1,7 @@
 import { getNow } from "@/lib/clock";
 import { getEs } from "@/lib/es/client";
 import { ensurePlanReady } from "@/lib/plan/infra";
-import { overlaps } from "@/lib/plan/slots";
+import { overlaps, rankLabel } from "@/lib/plan/slots";
 import { getSessions, listPlanDocs } from "@/lib/plan/store";
 import { nowNext } from "@/lib/plan/view";
 
@@ -25,7 +25,12 @@ export async function GET(request: Request) {
     const es = getEs();
     await ensurePlanReady(es);
     const room = url.searchParams.get("room") || (await currentRoom(now));
-    return Response.json(await nowNext(es, now, room, minutes));
+    const result = await nowNext(es, now, room, minutes);
+    const labels = new Map((await listPlanDocs(es)).map((d) => [d.session_id, rankLabel(d.rank)]));
+    for (const item of result.items) item.planLabel = labels.get(item.session.id) ?? null;
+    // Your own plan talks first, then nearest.
+    result.items.sort((a, b) => Number(!!b.planLabel) - Number(!!a.planLabel));
+    return Response.json(result);
   } catch (error) {
     console.error("[plan] now/next failed", error);
     return Response.json({ error: "Now / next is unavailable. Is Elasticsearch running?" }, { status: 502 });

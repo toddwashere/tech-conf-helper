@@ -141,6 +141,7 @@ export function PlanBoard({ day, at }: { day: string; at: string | null }) {
         <section key={slot.slotStart} className="rounded-xl border border-border bg-surface p-4">
           <header className="mb-3 flex flex-wrap items-baseline gap-x-3">
             <h2 className="text-lg font-semibold">{range(slot.slotStart, slot.slotEnd)}</h2>
+            {plan && <SlotTiming slot={slot} now={plan.now} />}
             <span className="text-sm text-muted">
               {slot.choices.length} choice{slot.choices.length === 1 ? "" : "s"}
             </span>
@@ -269,6 +270,7 @@ function ChoiceRow({
           {range(s.starts_at, s.ends_at)} · {[s.room, s.building].filter(Boolean).join(" · ")}
         </p>
         {s.speaker_names.length > 0 && <p className="text-sm text-muted">{s.speaker_names.join(", ")}</p>}
+        {choice.note && <p className="mt-1 text-sm italic text-foreground/70">{choice.note}</p>}
         {choice.full && (
           <span className="mt-1 inline-block rounded bg-danger/15 px-2 py-0.5 text-xs text-danger">
             {choice.fullReason === "sold_out"
@@ -328,7 +330,10 @@ function NowNext({ at, refreshKey }: { at: string | null; refreshKey: number }) 
       {data && data.items.length > 0 && (
         <ul className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {data.items.slice(0, 10).map((item) => (
-            <li key={item.session.id} className="w-60 shrink-0 rounded-lg border border-border bg-surface-2/50 p-3 text-sm">
+            <li
+              key={item.session.id}
+              className={`w-60 shrink-0 rounded-lg border p-3 text-sm ${item.planLabel ? "border-accent/60 bg-accent/5" : "border-border bg-surface-2/50"}`}
+            >
               <p className="flex justify-between text-xs text-muted">
                 <span className={item.status === "now" ? "text-accent" : ""}>
                   {item.status === "now" ? "On now" : `In ${item.minutesUntil} min`}
@@ -338,6 +343,7 @@ function NowNext({ at, refreshKey }: { at: string | null; refreshKey: number }) 
               <p className="mt-1 line-clamp-2 font-medium leading-snug">{item.session.title}</p>
               <p className="mt-1 text-xs text-muted">
                 {item.session.room}
+                {item.planLabel && <span className="ml-2 text-accent">Your {item.planLabel}</span>}
                 {item.full && <span className="ml-2 text-danger">Full</span>}
               </p>
             </li>
@@ -412,4 +418,16 @@ function RoomActivityStrip({ day, at, refreshKey }: { day: string; at: string | 
       <QueryInspector traces={data.trace} />
     </section>
   );
+}
+
+function SlotTiming({ slot, now }: { slot: PlanSlotView; now: string }) {
+  const t = new Date(now).getTime();
+  const start = new Date(slot.slotStart).getTime();
+  const end = new Date(slot.slotEnd).getTime();
+  if (t >= end) return <span className="rounded bg-surface-2 px-2 py-0.5 text-xs text-muted">Done</span>;
+  if (t >= start) return <span className="rounded bg-accent/15 px-2 py-0.5 text-xs text-accent">On now</span>;
+  const mins = Math.round((start - t) / 60_000);
+  if (mins <= 60)
+    return <span className="rounded bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">Starts in {mins} min</span>;
+  return null;
 }

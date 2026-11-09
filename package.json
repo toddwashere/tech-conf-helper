@@ -12,6 +12,7 @@
     "import": "tsx --env-file=.env.local scripts/import.ts",
     "seed:demo": "tsx --env-file=.env.local scripts/seed-demo.ts",
     "seed:memories": "tsx --env-file=.env.local scripts/seed-memories.ts",
+    "demo:reset": "npm run seed:demo -- --reset && npm run seed:memories -- --reset && npm run seed:demo && npm run seed:memories",
     "ci": "npm run typecheck && npm run lint && npm test",
     "elastic:setup": "tsx --env-file=.env.local scripts/elastic/setup.ts"
   },
