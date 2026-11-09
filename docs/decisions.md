@@ -42,7 +42,7 @@ ELSER on this laptop embeds about 0.6 s per session, so a full import takes abou
 | Workstream | Owns | Must not touch |
 |---|---|---|
 | WS-A Plan + reroute + time/geo | `src/lib/plan/`, `src/app/plan/`, `src/app/api/plan/`, `src/lib/geo.ts`, `room-signals` | `src/lib/search.ts`, `src/app/session/` |
-| WS-B Capture | `src/app/session/`, `src/lib/capture/`, `src/app/api/memories/`, `src/components/capture/` | `src/lib/plan/`, `scripts/elastic/` |
+| WS-B Capture | `src/app/session/`, `src/lib/capture/`, `src/app/api/memories/`, `src/components/capture/`, `src/app/report/`, `src/app/api/report/` | `src/lib/plan/`, `scripts/elastic/` |
 | WS-C Elastic platform | `scripts/elastic/`, `src/lib/search.ts`, `src/lib/agent/`, `src/app/ask/`, `src/app/pulse/` | `src/lib/plan/`, `src/app/session/` |
 
 Shared files (`src/lib/es/indices.ts`, `src/lib/types.ts`): additive changes only, append your section, and expect a trivial merge.
