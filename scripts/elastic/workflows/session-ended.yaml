@@ -45,9 +45,9 @@ steps:
     type: elasticsearch.index
     with:
       index: memories
-      id: "summary:{{ inputs.session_id }}"
+      id: "kubecon-na-2026:summary:{{ inputs.session_id }}"
       document:
-        id: "summary:{{ inputs.session_id }}"
+        id: "kubecon-na-2026:summary:{{ inputs.session_id }}"
         type: summary
         conference: "{{ steps.get_session.output.hits.hits[0]._source.conference }}"
         session_id: "{{ inputs.session_id }}"

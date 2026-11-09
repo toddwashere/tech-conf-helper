@@ -7,8 +7,11 @@ interface ValidateResult {
   results: { data: { result: { valid: boolean; diagnostics: unknown[] } } }[];
 }
 
-export function workflowYaml(id: string): string {
-  return readFileSync(join(__dirname, "workflows", `${id}.yaml`), "utf8");
+/** Reads a workflow; with a connector id, pins every `ai.*` step to it instead of Kibana's default AI connector. */
+export function workflowYaml(id: string, connectorId?: string | null): string {
+  const yaml = readFileSync(join(__dirname, "workflows", `${id}.yaml`), "utf8");
+  if (!connectorId) return yaml;
+  return yaml.replace(/^(\s*)type: (ai\.\w+)$/gm, `$1type: $2\n$1connector-id: ${connectorId}`);
 }
 
 export async function validateWorkflow(yaml: string): Promise<{ valid: boolean; diagnostics: unknown[] }> {
@@ -20,16 +23,16 @@ export async function validateWorkflow(yaml: string): Promise<{ valid: boolean; 
 }
 
 /** Validates each workflow YAML, then creates it (or updates it in place) with a stable id. */
-export async function ensureWorkflows(): Promise<string[]> {
+export async function ensureWorkflows(connectorId?: string | null): Promise<string[]> {
   const out: string[] = [];
   for (const id of WORKFLOW_IDS) {
-    const yaml = workflowYaml(id);
+    const yaml = workflowYaml(id, connectorId);
     const check = await validateWorkflow(yaml);
     if (!check.valid) throw new Error(`workflow ${id} is invalid: ${JSON.stringify(check.diagnostics)}`);
     const existing = await kibana("GET", `/api/workflows/workflow/${id}`, undefined, { allow404: true });
     if (existing) {
       await kibana("PUT", `/api/workflows/workflow/${id}`, { yaml });
-      out.push(`${id} updated`);
+      out.push(`${id} updated${connectorId ? ` (AI steps on ${connectorId})` : ""}`);
     } else {
       await kibana("POST", "/api/workflows", { workflows: [{ id, yaml }] });
       out.push(`${id} created`);

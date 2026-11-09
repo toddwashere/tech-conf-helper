@@ -29,8 +29,13 @@ async function main() {
   const es = getEs();
   await step("enrich", () => ensureSessionsEnrich(es));
   await step("signals", () => ensureRoomSignals(es));
-  await step("connector", async () => (await ensureLlmConnector()).note);
-  await step("workflows", ensureWorkflows);
+  let connectorId: string | null = null;
+  await step("connector", async () => {
+    const res = await ensureLlmConnector();
+    connectorId = res.id;
+    return res.note;
+  });
+  await step("workflows", () => ensureWorkflows(connectorId));
   await step("agent", async () => {
     const tools = await ensureTools();
     return [

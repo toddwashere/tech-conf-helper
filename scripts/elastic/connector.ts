@@ -29,8 +29,12 @@ export async function ensureLlmConnector(): Promise<{ id: string | null; note: s
     await setDefaultConnector(OPENAI_CONNECTOR_ID);
     return { id: OPENAI_CONNECTOR_ID, note: `${existing ? "updated" : "created"} OpenAI connector and made it the default` };
   }
-  const other = connectors.find((c) => LLM_TYPES.has(c.connector_type_id));
-  if (other) return { id: other.id, note: `using existing LLM connector ${other.name}` };
+  const pinned = process.env.KIBANA_LLM_CONNECTOR_ID;
+  const chosen = connectors.find((c) => c.id === pinned) ?? connectors.find((c) => LLM_TYPES.has(c.connector_type_id));
+  if (chosen) {
+    const hint = pinned ? "" : " (set KIBANA_LLM_CONNECTOR_ID to pick another)";
+    return { id: chosen.id, note: `using existing LLM connector "${chosen.name}" ${chosen.id}${hint}` };
+  }
   return {
     id: null,
     note: "BLOCKED: no LLM connector. Put OPENAI_API_KEY in .env.local (or connect Elastic Cloud for the Elastic Managed LLM) and rerun.",
