@@ -10,7 +10,7 @@ Built at the [Cloud Native Hackathon](https://www.wemakedevs.org/hackathons/cnh)
 
 | Feature | State |
 |---|---|
-| Schedule import (Sessionize feeds) | Done |
+| Schedule import (Sessionize feeds) with preview and live progress at `/import` | Done |
 | Hybrid talk search (keyword + semantic, RRF) | Done |
 | Plans A/B/C and room-full reroute | Planned |
 | Live captions, notes, summary | Planned |

@@ -65,6 +65,41 @@ export interface ImportResult {
   tookMs: number;
 }
 
+export interface NameCount {
+  name: string;
+  count: number;
+}
+
+export interface ImportPreview {
+  conference: string;
+  sources: string[];
+  sessions: number;
+  talks: number;
+  logistics: number;
+  speakers: number;
+  changedSessions: number;
+  skippedDuplicates: number;
+  days: NameCount[];
+  tracks: NameCount[];
+  buildings: NameCount[];
+  rooms: number;
+  full: number;
+  missingDescription: number;
+  timeZoneExample: { local: string; title: string } | null;
+  sample: { title: string; starts_at: string; room: string; speakers: string[] }[];
+}
+
+export interface ImportProgress {
+  phase: "fetching" | "embedding" | "speakers";
+  done: number;
+  total: number;
+}
+
+export type ImportStreamEvent =
+  | ({ type: "progress" } & ImportProgress)
+  | { type: "done"; result: ImportResult }
+  | { type: "error"; error: string };
+
 export interface SearchFilters {
   day?: string;
   track?: string;
