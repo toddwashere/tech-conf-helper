@@ -213,3 +213,33 @@ export interface NowNextResponse {
   from: string | null;
   items: NowNextItem[];
 }
+
+// --- WS-B capture: memories written while sitting in a talk ---
+
+export type MemoryType = "transcript" | "note" | "summary";
+
+export interface MemoryDoc {
+  id: string;
+  type: MemoryType | (string & {});
+  conference: string;
+  session_id: string | null;
+  source: string;
+  title: string | null;
+  text: string;
+  lang: string | null;
+  starts_at_ms: number | null;
+  metadata: Record<string, string> | null;
+  created_at: string;
+}
+
+export interface SessionSummary {
+  one_line: string;
+  takeaways: string[];
+  action_items: string[];
+}
+
+export type SummarizeResult =
+  | { status: "ok"; summary: SessionSummary; memoryId: string; transcriptChunks: number; notes: number }
+  | { status: "missing_key"; message: string }
+  | { status: "empty"; message: string }
+  | { status: "error"; message: string };
