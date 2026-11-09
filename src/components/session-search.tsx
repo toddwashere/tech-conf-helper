@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { formatDayInZone, formatTimeInZone } from "@/lib/time";
-import type { SearchResponse, SessionDoc } from "@/lib/types";
+import type { SearchMeta, SearchResponse, SessionDoc } from "@/lib/types";
+import { DEFAULT_ENGINE, SearchEngineToggle } from "./search-engine-toggle";
 
 const CONFERENCE_TZ = "America/Denver";
 
@@ -23,7 +24,8 @@ export function SessionSearch() {
   const [day, setDay] = useState("");
   const [submitted, setSubmitted] = useState({ query: "", day: "" });
   const [status, setStatus] = useState<Status>("idle");
-  const [result, setResult] = useState<SearchResponse | null>(null);
+  const [result, setResult] = useState<(SearchResponse & Partial<SearchMeta>) | null>(null);
+  const [engine, setEngine] = useState(DEFAULT_ENGINE);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export function SessionSearch() {
         const res = await fetch("/api/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ q: submitted.query, day: submitted.day || undefined }),
+          body: JSON.stringify({ q: submitted.query, day: submitted.day || undefined, ...engine }),
           signal: controller.signal,
         });
         const body = await res.json();
@@ -50,7 +52,7 @@ export function SessionSearch() {
     }
     run();
     return () => controller.abort();
-  }, [submitted]);
+  }, [submitted, engine]);
 
   function submit(nextQuery = query) {
     setQuery(nextQuery);
@@ -108,6 +110,8 @@ export function SessionSearch() {
           </button>
         ))}
       </div>
+
+      <SearchEngineToggle value={engine} onChange={setEngine} tookMs={result?.tookMs} />
 
       <div className="mt-6" aria-live="polite">
         {status === "loading" && <p className="text-muted">Searching…</p>}

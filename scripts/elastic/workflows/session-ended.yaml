@@ -1,0 +1,58 @@
+name: session-ended
+description: Summarize a session's transcript and notes from `memories` and index a `summary` memory.
+enabled: true
+tags: [conference-memory]
+triggers:
+  - type: manual
+inputs:
+  - name: session_id
+    type: string
+    required: true
+    description: Session id, e.g. kubecon-na-2026:123456
+steps:
+  - name: get_session
+    type: elasticsearch.search
+    with:
+      index: sessions
+      query:
+        term:
+          id: "{{ inputs.session_id }}"
+      size: 1
+      _source: [id, title, conference, speaker_names, room]
+  - name: get_memories
+    type: elasticsearch.search
+    with:
+      index: memories
+      query:
+        bool:
+          filter:
+            - term:
+                session_id: "{{ inputs.session_id }}"
+            - terms:
+                type: [transcript, note]
+      sort:
+        - starts_at_ms: { order: asc, missing: _last }
+        - created_at: asc
+      size: 500
+      _source: [type, text, starts_at_ms]
+  - name: summarize
+    type: ai.summarize
+    with:
+      input: "Talk: {{ steps.get_session.output.hits.hits[0]._source.title }}\n\n{% for h in steps.get_memories.output.hits.hits %}[{{ h._source.type }}] {{ h._source.text }}\n{% endfor %}"
+      instructions: "Summarize this conference talk for the attendee who watched it. Start with one sentence, then 3-5 key takeaways as bullets, then any action items. Lines marked [note] are the attendee's own notes; weigh them heavily."
+      maxLength: 1200
+  - name: write_summary
+    type: elasticsearch.index
+    with:
+      index: memories
+      id: "summary:{{ inputs.session_id }}"
+      document:
+        id: "summary:{{ inputs.session_id }}"
+        type: summary
+        conference: "{{ steps.get_session.output.hits.hits[0]._source.conference }}"
+        session_id: "{{ inputs.session_id }}"
+        source: workflow:session-ended
+        title: "Summary: {{ steps.get_session.output.hits.hits[0]._source.title }}"
+        text: "{{ steps.summarize.output.content }}"
+        content: "{{ steps.summarize.output.content }}"
+        created_at: "{{ execution.startedAt | date: '%Y-%m-%dT%H:%M:%S.%LZ' }}"

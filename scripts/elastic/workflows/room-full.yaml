@@ -1,0 +1,56 @@
+name: room-full
+description: Record a room-full signal in the `room-signals` data stream and look up the next-ranked backup in my plan for that slot.
+enabled: true
+tags: [conference-memory]
+triggers:
+  - type: manual
+inputs:
+  - name: session_id
+    type: string
+    required: true
+    description: The session whose room is full
+  - name: source
+    type: string
+    required: false
+    default: workflow
+steps:
+  - name: get_session
+    type: elasticsearch.search
+    with:
+      index: sessions
+      query:
+        term:
+          id: "{{ inputs.session_id }}"
+      size: 1
+      _source: [id, title, conference, room, building, starts_at]
+  - name: record_signal
+    type: elasticsearch.request
+    with:
+      method: POST
+      path: /room-signals/_doc
+      body:
+        "@timestamp": "{{ execution.startedAt | date: '%Y-%m-%dT%H:%M:%S.%LZ' }}"
+        conference: "{{ steps.get_session.output.hits.hits[0]._source.conference }}"
+        session_id: "{{ inputs.session_id }}"
+        room: "{{ steps.get_session.output.hits.hits[0]._source.room }}"
+        building: "{{ steps.get_session.output.hits.hits[0]._source.building }}"
+        signal: full
+        source: "{{ inputs.source }}"
+  - name: plan_row
+    type: elasticsearch.search
+    with:
+      index: plans
+      query:
+        term:
+          session_id: "{{ inputs.session_id }}"
+      size: 1
+      _source: [slot_start, rank]
+  - name: find_backup
+    type: elasticsearch.esql.query
+    with:
+      format: json
+      query: "FROM plans | WHERE slot_start == \"{{ steps.plan_row.output.hits.hits[0]._source.slot_start | default: steps.get_session.output.hits.hits[0]._source.starts_at }}\" AND session_id != \"{{ inputs.session_id }}\" | ENRICH conference-sessions-by-id ON session_id WITH title, room, building, starts_at | SORT rank ASC | KEEP rank, session_id, title, room, building, starts_at, reason | LIMIT 1"
+  - name: report
+    type: console
+    with:
+      message: "Room full: {{ steps.get_session.output.hits.hits[0]._source.title }} ({{ steps.get_session.output.hits.hits[0]._source.room }}). Next backup: {{ steps.find_backup.output.values | json }}"

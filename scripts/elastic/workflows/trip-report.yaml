@@ -1,0 +1,54 @@
+name: trip-report
+description: Write a conference trip report from every summary and note in `memories`, and save it as a `trip_report` memory.
+enabled: true
+tags: [conference-memory]
+triggers:
+  - type: manual
+inputs:
+  - name: conference
+    type: string
+    required: false
+    default: kubecon-na-2026
+  - name: audience
+    type: string
+    required: false
+    default: my engineering manager
+steps:
+  - name: get_memories
+    type: elasticsearch.search
+    with:
+      index: memories
+      query:
+        bool:
+          filter:
+            - term:
+                conference: "{{ inputs.conference }}"
+            - terms:
+                type: [summary, note]
+      sort:
+        - created_at: asc
+      size: 300
+      _source: [type, title, text, session_id]
+  - name: per_track
+    type: elasticsearch.esql.query
+    with:
+      format: json
+      query: "FROM plans | WHERE rank == 1 | ENRICH conference-sessions-by-id ON session_id WITH title, tracks | STATS planned = COUNT(*) BY tracks | SORT planned DESC | LIMIT 10"
+  - name: write_report
+    type: ai.prompt
+    with:
+      systemPrompt: "You write concise, useful conference trip reports in Markdown."
+      prompt: "Write a trip report for {{ inputs.audience }} about {{ inputs.conference }}. Sections: TL;DR (3 bullets), What I learned (grouped by theme, cite talk titles), What we should try, People and projects to follow. Tracks I planned to attend: {{ steps.per_track.output.values | json }}.\n\nMy summaries and notes:\n{% for h in steps.get_memories.output.hits.hits %}- [{{ h._source.type }}] {{ h._source.title }}: {{ h._source.text }}\n{% endfor %}"
+  - name: save_report
+    type: elasticsearch.index
+    with:
+      index: memories
+      id: "trip_report:{{ inputs.conference }}"
+      document:
+        id: "trip_report:{{ inputs.conference }}"
+        type: trip_report
+        conference: "{{ inputs.conference }}"
+        source: workflow:trip-report
+        title: "Trip report: {{ inputs.conference }}"
+        text: "{{ steps.write_report.output.content }}"
+        created_at: "{{ execution.startedAt | date: '%Y-%m-%dT%H:%M:%S.%LZ' }}"

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
     "import": "tsx --env-file=.env.local scripts/import.ts",
-    "ci": "npm run typecheck && npm run lint && npm test"
+    "ci": "npm run typecheck && npm run lint && npm test",
+    "elastic:setup": "tsx --env-file=.env.local scripts/elastic/setup.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.5.1",
