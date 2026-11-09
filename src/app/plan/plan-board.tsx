@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { formatDayInZone, formatTimeInZone } from "@/lib/time";
-import type { NowNextResponse, PlanChoice, PlanResponse, PlanSlotView, RerouteResult } from "@/lib/types";
+import type { NowNextResponse, PlanChoice, PlanResponse, PlanSlotView, RerouteResult, RoomActivity } from "@/lib/types";
 
 const TZ = "America/Denver";
 const DAYS = [
@@ -97,16 +97,30 @@ export function PlanBoard({ day, at }: { day: string; at: string | null }) {
         <Link href="/" className="rounded-lg border border-border px-3 py-2 text-muted hover:border-accent hover:text-foreground">
           + Add talks
         </Link>
-        <button
-          type="button"
-          onClick={() => act("reset", "/api/plan/reset", "POST", { signals: true })}
-          className="ml-auto rounded-lg px-3 py-2 text-muted hover:text-foreground"
-        >
-          Reset room signals
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => act("reset:signals", "/api/plan/reset", "POST", { mode: "signals" })}
+            className="rounded-lg px-3 py-2 text-muted hover:text-foreground disabled:opacity-50"
+            title="Clear Room full reports, keep the plan"
+          >
+            Clear signals
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => act("reset:demo", "/api/plan/reset", "POST", { mode: "demo" })}
+            className="rounded-lg border border-border px-3 py-2 text-muted hover:border-accent hover:text-foreground disabled:opacity-50"
+            title="Restore the demo plan for Tue Nov 10 and clear Room full reports"
+          >
+            {busy === "reset:demo" ? "Resetting…" : "Reset demo"}
+          </button>
+        </div>
       </div>
 
       <NowNext at={at} refreshKey={nowNextKey} />
+      <RoomActivityStrip day={day} at={at} refreshKey={nowNextKey} />
 
       {error && <p className="rounded-lg border border-danger/40 bg-danger/10 p-4 text-danger">{error}</p>}
       {status === "loading" && <p className="text-muted">Loading your plan…</p>}
@@ -327,6 +341,70 @@ function NowNext({ at, refreshKey }: { at: string | null; refreshKey: number }) 
             </li>
           ))}
         </ul>
+      )}
+    </section>
+  );
+}
+
+function RoomActivityStrip({ day, at, refreshKey }: { day: string; at: string | null; refreshKey: number }) {
+  const [data, setData] = useState<RoomActivity | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    call<RoomActivity>(`/api/plan/activity?day=${day}${at ? `&at=${encodeURIComponent(at)}` : ""}`, "GET")
+      .then((d) => !cancelled && (setData(d), setFailed(false)))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [day, at, refreshKey]);
+
+  if (failed) return null;
+  if (!data) return <p className="text-sm text-muted">Loading room activity…</p>;
+  if (data.total === 0) return null;
+  const max = Math.max(1, ...data.buckets.map((b) => b.checkin + b.crowded + b.full));
+  const live = data.total - data.simulated;
+  return (
+    <section className="rounded-xl border border-border bg-surface p-4">
+      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-lg font-semibold">Room activity today</h2>
+        {data.simulated > 0 && (
+          <span className="rounded bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">
+            Simulated history{live > 0 ? ` + ${live} live report${live === 1 ? "" : "s"}` : ""}
+          </span>
+        )}
+        <span className="text-sm text-muted">room-signals, every 30 min, up to {formatTimeInZone(data.until, TZ)}</span>
+      </header>
+      <div className="mt-3 flex h-24 items-end gap-1" role="img" aria-label="Check-ins per half hour">
+        {data.buckets.map((b) => {
+          const total = b.checkin + b.crowded + b.full;
+          return (
+            <div
+              key={b.start}
+              className="flex min-w-0 flex-1 flex-col justify-end"
+              title={`${formatTimeInZone(b.start, TZ)}: ${b.checkin} check-ins, ${b.crowded} crowded, ${b.full} full`}
+            >
+              {b.full > 0 && <div className="rounded-t bg-danger" style={{ height: `${Math.max(3, (b.full / max) * 96)}px` }} />}
+              {b.crowded > 0 && <div className="bg-warn" style={{ height: `${Math.max(2, (b.crowded / max) * 96)}px` }} />}
+              <div className="rounded-b bg-accent/70" style={{ height: `${(b.checkin / max) * 96}px` }} />
+              {total === 0 && <div className="h-px bg-border" />}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1 flex justify-between text-xs text-muted">
+        <span>{data.buckets[0] && formatTimeInZone(data.buckets[0].start, TZ)}</span>
+        <span>
+          <span className="text-accent">■</span> check-in <span className="text-warn">■</span> crowded{" "}
+          <span className="text-danger">■</span> full
+        </span>
+        <span>{formatTimeInZone(data.until, TZ)}</span>
+      </div>
+      {data.busiestRooms.length > 0 && (
+        <p className="mt-2 text-xs text-muted">
+          Busiest: {data.busiestRooms.slice(0, 3).map((r) => `${r.room} (${r.checkins})`).join(", ")}
+        </p>
       )}
     </section>
   );

@@ -2,7 +2,8 @@ import type { Client } from "@elastic/elasticsearch";
 import { DEFAULT_CONFERENCE } from "../conference";
 import { ROOM_SIGNALS_STREAM } from "../es/indices";
 import { roomLocation } from "../geo";
-import type { RoomSignalDoc, RoomSignalKind, SessionDoc } from "../types";
+import { DEFAULT_TIME_ZONE, localToZonedIso } from "../time";
+import type { RoomActivity, RoomSignalDoc, RoomSignalKind, SessionDoc } from "../types";
 
 /** A `full` signal counts for this long. Rooms empty out between talks. */
 export const FULL_SIGNAL_WINDOW_MIN = 60;
@@ -50,6 +51,8 @@ export async function recentFullSignals(es: Client, sessionIds: string[], now: D
             },
           },
         ],
+        // Simulated history feeds dashboards only; it never marks a real talk full.
+        must_not: [{ term: { source: "simulated" } }],
       },
     },
     aggs: {
@@ -66,13 +69,68 @@ export async function recentFullSignals(es: Client, sessionIds: string[], now: D
   return out;
 }
 
-/** Demo reset: removes this conference's signals (delete_by_query works on data streams). */
-export async function clearSignals(es: Client, conference: string = DEFAULT_CONFERENCE.id): Promise<number> {
+/** Demo reset: removes this conference's signals (delete_by_query works on data streams). Keeps simulated history unless asked. */
+export async function clearSignals(
+  es: Client,
+  conference: string = DEFAULT_CONFERENCE.id,
+  opts: { includeSimulated?: boolean } = {},
+): Promise<number> {
   const res = await es.deleteByQuery({
     index: ROOM_SIGNALS_STREAM,
-    query: { term: { conference } },
+    query: {
+      bool: {
+        filter: [{ term: { conference } }],
+        must_not: opts.includeSimulated ? [] : [{ term: { source: "simulated" } }],
+      },
+    },
     refresh: true,
     conflicts: "proceed",
   });
   return res.deleted ?? 0;
+}
+
+/** Time-series view of `room-signals`: 30-minute date_histogram split by signal, and top rooms by check-ins. */
+export async function roomActivity(es: Client, day: string, now: Date): Promise<RoomActivity> {
+  const from = localToZonedIso(`${day}T07:00`);
+  const dayEnd = localToZonedIso(`${day}T20:00`);
+  const until = now.toISOString() < new Date(dayEnd).toISOString() ? now.toISOString() : new Date(dayEnd).toISOString();
+  const res = await es.search({
+    index: ROOM_SIGNALS_STREAM,
+    size: 0,
+    query: { range: { "@timestamp": { gte: from, lte: until } } },
+    aggs: {
+      over_time: {
+        date_histogram: {
+          field: "@timestamp",
+          fixed_interval: "30m",
+          time_zone: DEFAULT_TIME_ZONE,
+          extended_bounds: { min: from, max: until },
+        },
+        aggs: { by_signal: { terms: { field: "signal", size: 3 } } },
+      },
+      simulated: { filter: { term: { source: "simulated" } } },
+      rooms: {
+        terms: { field: "room", size: 5, order: { checkins: "desc" } },
+        aggs: {
+          checkins: { filter: { term: { signal: "checkin" } } },
+          full: { filter: { term: { signal: "full" } } },
+        },
+      },
+    },
+  });
+  type Hist = { buckets: { key_as_string: string; by_signal: { buckets: { key: string; doc_count: number }[] } }[] };
+  type Rooms = { buckets: { key: string; checkins: { doc_count: number }; full: { doc_count: number } }[] };
+  const aggs = res.aggregations as unknown as { over_time: Hist; simulated: { doc_count: number }; rooms: Rooms };
+  const total = typeof res.hits.total === "number" ? res.hits.total : (res.hits.total?.value ?? 0);
+  return {
+    day,
+    until,
+    total,
+    simulated: aggs.simulated.doc_count,
+    buckets: aggs.over_time.buckets.map((b) => {
+      const get = (k: string) => b.by_signal.buckets.find((x) => x.key === k)?.doc_count ?? 0;
+      return { start: b.key_as_string, checkin: get("checkin"), crowded: get("crowded"), full: get("full") };
+    }),
+    busiestRooms: aggs.rooms.buckets.map((b) => ({ room: b.key, checkins: b.checkins.doc_count, full: b.full.doc_count })),
+  };
 }
