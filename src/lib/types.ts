@@ -216,7 +216,7 @@ export interface NowNextResponse {
 
 // --- WS-B capture: memories written while sitting in a talk ---
 
-export type MemoryType = "transcript" | "note" | "summary";
+export type MemoryType = "transcript" | "note" | "summary" | "rating" | "contact";
 
 export interface MemoryDoc {
   id: string;
@@ -258,4 +258,36 @@ export interface RoomActivity {
   simulated: number;
   buckets: ActivityBucket[];
   busiestRooms: { room: string; checkins: number; full: number }[];
+}
+
+export interface TripReportSession {
+  id: string;
+  title: string;
+  starts_at: string | null;
+  room: string | null;
+  summary: string | null;
+  notes: string[];
+  rating: { score: number; reason: string | null } | null;
+  contacts: { name: string; role: string | null; profile_url: string | null; topic: string | null; follow_up: string | null }[];
+}
+
+export interface TripReportDay {
+  day: string;
+  sessions: TripReportSession[];
+}
+
+export interface TripReportAi {
+  headline: string;
+  highlights: string[];
+  top_talks: { session_id: string; title: string; why: string }[];
+  follow_ups: string[];
+  next_steps: string[];
+}
+
+export interface TripReport {
+  days: TripReportDay[];
+  counts: { sessions: number; notes: number; ratings: number; contacts: number; summaries: number };
+  ai: TripReportAi | null;
+  aiStatus: "ok" | "missing_key" | "error" | "skipped";
+  aiMessage: string | null;
 }
