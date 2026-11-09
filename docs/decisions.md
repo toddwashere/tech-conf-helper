@@ -33,6 +33,10 @@ Preferred: Elastic Managed LLM via EIS (Cloud Connect), if the trial exposes it.
 
 ELSER on this laptop embeds about 0.6 s per session, so a full import takes about 8 minutes. Re-imports skip unchanged sessions by hash. Don't run a full ELSER import live in the demo.
 
+## D7. Merging to main often
+
+`main` on GitHub is always runnable. Workstreams commit on their own branch at every working slice and report it. They don't push or merge themselves. The main planning chat merges each reported slice into `main` once `npm run ci` passes on the merged result, pushes, and tells the other workstreams to `git merge origin/main`. Aim for a merge every 45–60 minutes per workstream, not one big merge at the end.
+
 ## D6. Ownership boundaries for parallel work
 
 | Workstream | Owns | Must not touch |
