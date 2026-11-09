@@ -47,7 +47,13 @@ export async function askAgent(input: string, conversationId?: string): Promise<
       tookMs: Date.now() - started,
     };
   } catch (error) {
-    if (error instanceof KibanaError && /connector/i.test(error.message)) {
+    if (error instanceof KibanaError && /error calling connector|timeout/i.test(error.message)) {
+      return {
+        status: "error",
+        message: "The copilot's language model didn't answer in time. Try again, or use a faster LLM connector.",
+      };
+    }
+    if (error instanceof KibanaError && /no connector/i.test(error.message)) {
       return {
         status: "no_llm",
         message:
