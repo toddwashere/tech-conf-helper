@@ -8,7 +8,7 @@ async function main() {
     getEs(),
     (urls.length ? urls : [...DEFAULT_CONFERENCE.feeds]).map((url) => ({ url })),
     { conference: DEFAULT_CONFERENCE.id, timeZone: DEFAULT_CONFERENCE.timeZone },
-    (done, total) => console.log(`[import] embedded ${done}/${total} sessions`),
+    (p) => console.log(`[import] ${p.phase} ${p.done}/${p.total}`),
   );
   console.log(JSON.stringify(result, null, 2));
 }
