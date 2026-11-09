@@ -15,10 +15,15 @@ import { useTranscriptSync } from "./use-transcript-sync";
 
 const TZ = "America/Denver";
 
-type Load = { kind: "loading" } | { kind: "ready"; session: SessionDoc } | { kind: "error"; message: string };
+type Load =
+  | { kind: "loading" }
+  | { kind: "ready"; session: SessionDoc }
+  | { kind: "missing" }
+  | { kind: "error"; message: string };
 
 export function SessionCapture({ sessionId }: { sessionId: string }) {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
+  const [attempt, setAttempt] = useState(0);
   const transcript = useTranscriptSync(sessionId);
   const notes = useNotes(sessionId);
   const { flush } = transcript;
@@ -29,6 +34,7 @@ export function SessionCapture({ sessionId }: { sessionId: string }) {
     fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { signal: controller.signal })
       .then(async (r) => {
         const body = (await r.json()) as { session?: SessionDoc; error?: string };
+        if (r.status === 404) return setLoad({ kind: "missing" });
         if (!r.ok || !body.session) throw new Error(body.error ?? "Session unavailable");
         setLoad({ kind: "ready", session: body.session });
       })
@@ -37,7 +43,7 @@ export function SessionCapture({ sessionId }: { sessionId: string }) {
         setLoad({ kind: "error", message: err instanceof Error ? err.message : "Session unavailable" });
       });
     return () => controller.abort();
-  }, [sessionId]);
+  }, [sessionId, attempt]);
 
   const beforeSummarize = useCallback(async () => {
     await Promise.all([flush(), sync()]);
@@ -49,26 +55,56 @@ export function SessionCapture({ sessionId }: { sessionId: string }) {
         ← All sessions
       </Link>
 
-      {load.kind === "loading" && <p className="mt-6 text-muted">Loading session…</p>}
+      {load.kind === "loading" && (
+        <div className="mt-4 flex flex-col gap-2" aria-label="Loading session">
+          <div className="h-4 w-48 animate-pulse rounded bg-surface-2" />
+          <div className="h-8 w-full max-w-2xl animate-pulse rounded bg-surface-2" />
+          <div className="h-4 w-64 animate-pulse rounded bg-surface-2" />
+        </div>
+      )}
       {load.kind === "error" && (
-        <p className="mt-6 rounded-lg border border-danger/40 bg-danger/10 p-4 text-danger">{load.message}</p>
+        <div className="mt-6 rounded-lg border border-danger/40 bg-danger/10 p-4 text-danger">
+          <p>{load.message} Captions and notes below still work and will sync later.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoad({ kind: "loading" });
+              setAttempt((a) => a + 1);
+            }}
+            className="mt-2 rounded-lg border border-danger/60 px-3 py-1.5 text-sm hover:bg-danger/10"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+      {load.kind === "missing" && (
+        <div className="mt-6 rounded-xl border border-border bg-surface p-6">
+          <h1 className="text-xl font-semibold">We couldn&apos;t find that session</h1>
+          <p className="mt-1 text-muted">It may have been removed from the schedule, or the link is incomplete.</p>
+          <Link href="/" className="mt-3 inline-block rounded-lg bg-accent-strong px-4 py-2 text-sm font-medium text-background hover:bg-accent">
+            Search sessions
+          </Link>
+        </div>
       )}
       {load.kind === "ready" && <SessionHeader session={load.session} />}
+      {load.kind !== "missing" && (
+        <>
+          <div className="mt-6 grid grid-cols-1 gap-6 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <CaptionPanel sync={transcript} />
+            <NotesPanel state={notes} />
+          </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <CaptionPanel sync={transcript} />
-        <NotesPanel state={notes} />
-      </div>
+          <div className="mt-6 grid grid-cols-1 gap-6 [&>*]:min-w-0 lg:grid-cols-[340px_minmax(0,1fr)]">
+            <RatingPanel sessionId={sessionId} sessionTitle={load.kind === "ready" ? load.session.title : null} />
+            <ContactsPanel sessionId={sessionId} />
+          </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-        <RatingPanel sessionId={sessionId} sessionTitle={load.kind === "ready" ? load.session.title : null} />
-        <ContactsPanel sessionId={sessionId} />
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <SummaryPanel sessionId={sessionId} beforeSummarize={beforeSummarize} />
-        <RelatedPanel sessionId={sessionId} refreshKey={notes.notes.length} />
-      </div>
+          <div className="mt-6 grid grid-cols-1 gap-6 [&>*]:min-w-0 lg:grid-cols-2">
+            <SummaryPanel sessionId={sessionId} beforeSummarize={beforeSummarize} />
+            <RelatedPanel sessionId={sessionId} refreshKey={notes.notes.length} />
+          </div>
+        </>
+      )}
     </main>
   );
 }

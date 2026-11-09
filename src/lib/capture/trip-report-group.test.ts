@@ -61,4 +61,24 @@ describe("groupTripReport", () => {
     expect(days[1].sessions[0]).toMatchObject({ title: "Not tied to a session", notes: ["hallway"] });
     expect(counts.ratings).toBe(0);
   });
+
+  it("builds the at-a-glance view: top-rated first, to-dos from notes and summaries, people to follow up", () => {
+    const { glance, days } = groupTripReport(
+      [
+        mem({ session_id: "s1", type: "rating", metadata: { score: "3" } }),
+        mem({ session_id: "s2", type: "rating", metadata: { score: "5", reason: "best" } }),
+        mem({ session_id: "s3", type: "rating", metadata: { score: "2" } }),
+        mem({ session_id: "s1", type: "note", text: "TODO: pin kernels\nnice demo" }),
+        mem({ session_id: "s2", type: "summary", text: "x", metadata: { action_items: JSON.stringify(["Pin kernels", "Enable observe-only"]) } }),
+        mem({ session_id: "s2", type: "contact", metadata: { name: "Sam Okafor", follow_up: "share dashboard" } }),
+      ],
+      sessions,
+    );
+    expect(glance.topTalks.map((t) => [t.title, t.score])).toEqual([["Later talk", 5], ["Earlier talk", 3]]);
+    expect(glance.actions.map((a) => a.text)).toEqual(["Pin kernels", "Pin kernels", "Enable observe-only"]);
+    expect(days[0].sessions[1].actions).toEqual(["Pin kernels", "Enable observe-only"]);
+    expect(glance.followUps).toEqual([
+      { name: "Sam Okafor", role: null, follow_up: "share dashboard", profile_url: null, session_title: "Later talk" },
+    ]);
+  });
 });

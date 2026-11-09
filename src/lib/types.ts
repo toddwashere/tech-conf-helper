@@ -244,7 +244,16 @@ export interface SessionSummary {
 }
 
 export type SummarizeResult =
-  | { status: "ok"; summary: SessionSummary; memoryId: string; transcriptChunks: number; notes: number }
+  | {
+      status: "ok";
+      summary: SessionSummary;
+      memoryId: string;
+      transcriptChunks: number;
+      notes: number;
+      /** "extractive" = picked from your transcript and notes by Elasticsearch, no model involved. */
+      mode: "ai" | "extractive";
+      notice: string | null;
+    }
   | { status: "missing_key"; message: string }
   | { status: "empty"; message: string }
   | { status: "error"; message: string };
@@ -268,6 +277,8 @@ export interface RoomActivity {
 
 export interface TripReportSession {
   id: string;
+  /** Action items from notes (TODO/try/ask/follow up) and from the session summary. */
+  actions: string[];
   title: string;
   starts_at: string | null;
   room: string | null;
@@ -290,7 +301,14 @@ export interface TripReportAi {
   next_steps: string[];
 }
 
+export interface TripReportGlance {
+  topTalks: { id: string; title: string; score: number; reason: string | null; starts_at: string | null }[];
+  actions: { text: string; session_id: string; title: string }[];
+  followUps: { name: string; role: string | null; follow_up: string | null; profile_url: string | null; session_title: string }[];
+}
+
 export interface TripReport {
+  glance: TripReportGlance;
   days: TripReportDay[];
   counts: { sessions: number; notes: number; ratings: number; contacts: number; summaries: number };
   ai: TripReportAi | null;

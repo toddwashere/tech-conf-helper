@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDayInZone, formatTimeInZone } from "@/lib/time";
-import type { TripReport, TripReportSession } from "@/lib/types";
+import type { TripReport, TripReportGlance, TripReportSession } from "@/lib/types";
 
 const TZ = "America/Denver";
 
@@ -19,6 +19,7 @@ async function fetchReport(withAi: boolean): Promise<TripReport> {
 export function TripReportView() {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [writing, setWriting] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -28,7 +29,7 @@ export function TripReportView() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
   async function writeWithAi() {
     setWriting(true);
@@ -41,8 +42,33 @@ export function TripReportView() {
     }
   }
 
-  if (load.kind === "loading") return <p className="text-muted">Gathering everything you captured…</p>;
-  if (load.kind === "error") return <p className="rounded-lg border border-danger/40 bg-danger/10 p-4 text-danger">{load.message}</p>;
+  if (load.kind === "loading") {
+    return (
+      <div className="flex flex-col gap-3" aria-label="Loading trip report">
+        <p className="text-muted">Gathering everything you captured…</p>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-24 animate-pulse rounded-xl bg-surface" />
+        ))}
+      </div>
+    );
+  }
+  if (load.kind === "error") {
+    return (
+      <div className="rounded-lg border border-danger/40 bg-danger/10 p-4 text-danger">
+        <p>{load.message}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setLoad({ kind: "loading" });
+            setAttempt((a) => a + 1);
+          }}
+          className="mt-2 rounded-lg border border-danger/60 px-3 py-1.5 text-sm hover:bg-danger/10"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   const { report } = load;
   const c = report.counts;
@@ -87,6 +113,8 @@ export function TripReportView() {
         </p>
       )}
 
+      <Glance glance={report.glance} />
+
       {report.ai && (
         <section className="rounded-xl border border-accent/40 bg-surface p-5">
           <p className="text-lg font-medium">{report.ai.headline}</p>
@@ -122,6 +150,86 @@ export function TripReportView() {
         </section>
       ))}
     </div>
+  );
+}
+
+function Glance({ glance }: { glance: TripReportGlance }) {
+  const { topTalks, actions, followUps } = glance;
+  if (!topTalks.length && !actions.length && !followUps.length) return null;
+  return (
+    <section aria-labelledby="glance-heading" className="rounded-xl border border-accent/30 bg-surface p-5">
+      <h2 id="glance-heading" className="text-sm font-semibold uppercase tracking-wider text-accent">
+        At a glance
+      </h2>
+      <div className="mt-4 grid grid-cols-1 gap-6 [&>*]:min-w-0 md:grid-cols-3">
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Top talks</h3>
+          {topTalks.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Rate talks to rank them here.</p>
+          ) : (
+            <ol className="mt-2 flex flex-col gap-3">
+              {topTalks.map((t, i) => (
+                <li key={t.id} className="flex gap-3">
+                  <span className="text-2xl font-semibold leading-none text-accent">{i + 1}</span>
+                  <div className="min-w-0">
+                    <Link href={`/session/${encodeURIComponent(t.id)}`} className="font-medium leading-snug hover:text-accent hover:underline">
+                      {t.title}
+                    </Link>
+                    <p className="text-sm text-muted">
+                      <span className="text-accent" aria-label={`Rated ${t.score} of 5`}>
+                        {"★".repeat(t.score)}
+                      </span>
+                      {t.reason && <> · {t.reason}</>}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">To do back at work</h3>
+          {actions.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Start a note with “TODO”, “Try”, “Ask” or “Follow up” and it lands here.</p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-2 text-sm">
+              {actions.map((a, i) => (
+                <li key={`${a.session_id}-${i}`} className="flex gap-2">
+                  <span aria-hidden className="mt-0.5 text-muted">☐</span>
+                  <span className="min-w-0">
+                    {a.text}
+                    <span className="block truncate text-xs text-muted">{a.title}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Follow up with</h3>
+          {followUps.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">People you add on a session page show up here.</p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-3 text-sm">
+              {followUps.map((p, i) => (
+                <li key={`${p.name}-${i}`}>
+                  {p.profile_url ? (
+                    <a href={p.profile_url} target="_blank" rel="noreferrer noopener" className="font-medium text-accent hover:underline">
+                      {p.name}
+                    </a>
+                  ) : (
+                    <span className="font-medium">{p.name}</span>
+                  )}
+                  {p.role && <span className="text-muted"> · {p.role}</span>}
+                  {p.follow_up && <span className="block">{p.follow_up}</span>}
+                  <span className="block truncate text-xs text-muted">Met at {p.session_title}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 

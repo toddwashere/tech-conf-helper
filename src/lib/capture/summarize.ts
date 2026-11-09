@@ -2,6 +2,8 @@ import { z } from "zod";
 import { DEFAULT_CONFERENCE } from "@/lib/conference";
 import { getEs } from "@/lib/es/client";
 import type { SessionSummary, SummarizeResult } from "@/lib/types";
+import type { QueryTrace } from "@/components/query-inspector";
+import { extractiveSummary } from "./extractive";
 import { listSessionMemories, saveSummaryMemory } from "./memories";
 import { SUMMARY_SYSTEM_PROMPT, summaryUserPrompt } from "./prompts";
 import { getSessionById } from "./session";
@@ -45,45 +47,61 @@ async function callOpenAi(apiKey: string, user: string): Promise<unknown> {
   return JSON.parse(body.choices?.[0]?.message?.content ?? "null");
 }
 
-/**
- * The one entry point for session summaries: read transcript + notes from ES, ask the model, validate, and write a
- * `summary` memory. WS-C may swap the body for an Elastic Workflow call; callers only depend on this signature.
- */
-export async function summarizeSession(sessionId: string): Promise<SummarizeResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return {
-      status: "missing_key",
-      message: "Summaries need an OpenAI key. Add OPENAI_API_KEY to .env.local and restart the dev server.",
-    };
-  }
+export type SummarizeResponse = SummarizeResult & { trace?: QueryTrace[] };
 
+const NO_KEY_NOTICE = "No AI key, so Elasticsearch picked these from your captions and notes. Add OPENAI_API_KEY for a written summary.";
+
+async function aiSummary(apiKey: string, user: string): Promise<SessionSummary | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const parsed = summarySchema.safeParse(await callOpenAi(apiKey, user));
+      if (parsed.success) return parsed.data;
+      console.warn("[summarize] invalid model output, attempt", attempt + 1, parsed.error.issues);
+    } catch (error) {
+      console.error("[summarize] model call failed", error);
+    }
+  }
+  return null;
+}
+
+/**
+ * The one entry point for session summaries: read transcript + notes from ES, summarize, and write a `summary`
+ * memory. With OPENAI_API_KEY it asks the model (zod-validated); without one, or if the model fails, it builds
+ * "Highlights (no AI)" with Elasticsearch ranking alone. WS-C may swap the AI body for an Elastic Workflow call;
+ * callers only depend on this signature.
+ */
+export async function summarizeSession(sessionId: string): Promise<SummarizeResponse> {
   const es = getEs();
   const session = await getSessionById(es, sessionId);
   if (!session) return { status: "error", message: "We couldn't find that session." };
 
   const memories = await listSessionMemories(es, sessionId, ["transcript", "note"]);
   const transcriptChunks = memories.filter((m) => m.type === "transcript");
-  const notes = memories.filter((m) => m.type === "note").map((m) => m.text);
+  const noteDocs = memories.filter((m) => m.type === "note");
+  const notes = noteDocs.map((m) => m.text);
   if (!transcriptChunks.length && !notes.length) {
     return { status: "empty", message: "Nothing to summarize yet. Start captions or add a note first." };
   }
 
-  const transcript = transcriptChunks.map((c) => c.text).join(" ").slice(-MAX_TRANSCRIPT_CHARS);
-  const user = summaryUserPrompt({ title: session.title, abstract: session.description, transcript, notes });
-
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
   let summary: SessionSummary | null = null;
-  for (let attempt = 0; attempt < 2 && !summary; attempt++) {
-    try {
-      const parsed = summarySchema.safeParse(await callOpenAi(apiKey, user));
-      if (parsed.success) summary = parsed.data;
-      else console.warn("[summarize] invalid model output, attempt", attempt + 1, parsed.error.issues);
-    } catch (error) {
-      console.error("[summarize] model call failed", error);
-      if (attempt === 1) return { status: "error", message: "The summary model is unavailable right now. Try again." };
-    }
+  let mode: "ai" | "extractive" = "ai";
+  let notice: string | null = null;
+  let trace: QueryTrace[] = [];
+
+  if (apiKey) {
+    const transcript = transcriptChunks.map((c) => c.text).join(" ").slice(-MAX_TRANSCRIPT_CHARS);
+    summary = await aiSummary(apiKey, summaryUserPrompt({ title: session.title, abstract: session.description, transcript, notes }));
+    if (!summary) notice = "The AI summary failed, so Elasticsearch picked these highlights instead.";
+  } else {
+    notice = NO_KEY_NOTICE;
   }
-  if (!summary) return { status: "error", message: "The model returned an unusable summary twice. Try again." };
+  if (!summary) {
+    const extractive = await extractiveSummary(es, session, transcriptChunks.length, noteDocs);
+    summary = extractive.summary;
+    trace = extractive.trace;
+    mode = "extractive";
+  }
 
   const memoryId = summaryMemoryId(sessionId);
   await saveSummaryMemory(es, {
@@ -91,17 +109,18 @@ export async function summarizeSession(sessionId: string): Promise<SummarizeResu
     type: "summary",
     conference: DEFAULT_CONFERENCE.id,
     session_id: sessionId,
-    source: `openai:${MODEL}`,
-    title: `Summary: ${session.title}`,
+    source: mode === "ai" ? `openai:${MODEL}` : "extractive",
+    title: `${mode === "ai" ? "Summary" : "Highlights"}: ${session.title}`,
     text: summaryToText(summary),
     lang: "en",
     starts_at_ms: null,
     metadata: {
+      mode,
       one_line: summary.one_line,
       takeaways: JSON.stringify(summary.takeaways),
       action_items: JSON.stringify(summary.action_items),
     },
     created_at: new Date().toISOString(),
   });
-  return { status: "ok", summary, memoryId, transcriptChunks: transcriptChunks.length, notes: notes.length };
+  return { status: "ok", summary, memoryId, transcriptChunks: transcriptChunks.length, notes: notes.length, mode, notice, trace };
 }

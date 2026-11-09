@@ -20,7 +20,8 @@ interface DisplayPrefs {
 }
 
 const PREFS_KEY = "cm:caption-prefs";
-const FONT_STEPS = [20, 28, 36, 48, 64, 80];
+// Up to 128px: readable from the back of a session room on a laptop held up or a projector.
+const FONT_STEPS = [20, 28, 36, 48, 64, 80, 104, 128];
 const MAX_LINES = 60;
 
 function loadPrefs(): DisplayPrefs {
@@ -268,6 +269,17 @@ export function CaptionPanel({ sync }: { sync: Sync }) {
         <button type="button" onClick={toggleFullscreen} className="rounded-lg border border-border px-3 py-1.5 hover:border-accent">
           {fullscreen ? "Exit full screen" : "Full screen"}
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            updatePrefs({ fontPx: 80, contrast: true });
+            if (!document.fullscreenElement) void toggleFullscreen();
+          }}
+          title="80px, high contrast, full screen: readable across a room"
+          className="rounded-lg border border-yellow-300/60 px-3 py-1.5 text-yellow-300 hover:bg-yellow-300/10"
+        >
+          Across the room
+        </button>
       </div>
 
       {error && <p className="rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</p>}
@@ -283,7 +295,7 @@ export function CaptionPanel({ sync }: { sync: Sync }) {
             <span className="rounded-full bg-surface-2 px-3 py-1 text-muted">Not capturing</span>
           )}
           <span className="ml-auto text-xs opacity-70">
-            {status.savedChunks} chunks saved
+            {status.savedChunks} {status.savedChunks === 1 ? "chunk" : "chunks"} saved
             {status.queuedChunks > 0 && ` · ${status.queuedChunks} queued`}
           </span>
         </div>
@@ -291,7 +303,7 @@ export function CaptionPanel({ sync }: { sync: Sync }) {
         <div
           ref={scrollRef}
           className={`mt-4 flex-1 overflow-y-auto ${fullscreen ? "max-h-[85vh]" : "max-h-[55vh]"}`}
-          style={{ fontSize: `${prefs.fontPx}px`, lineHeight: 1.35 }}
+          style={{ fontSize: `${prefs.fontPx}px`, lineHeight: prefs.fontPx >= 48 ? 1.18 : 1.35, letterSpacing: "0.005em" }}
           aria-live="off"
         >
           {lines.length === 0 && !interim && (
@@ -302,11 +314,11 @@ export function CaptionPanel({ sync }: { sync: Sync }) {
             </p>
           )}
           {lines.map((l, i) => (
-            <p key={l.id} className={`mb-2 font-medium ${i < lines.length - 3 ? "opacity-60" : ""}`}>
+            <p key={l.id} className={`mb-[0.35em] font-semibold ${i < lines.length - 2 ? "opacity-50" : ""}`}>
               {l.text}
             </p>
           ))}
-          {interim && <p className="mb-2 font-medium opacity-70">{interim}</p>}
+          {interim && <p className="mb-[0.35em] font-semibold opacity-75">{interim}</p>}
         </div>
         {status.error && <p className="mt-2 text-xs text-warn">{status.error}</p>}
       </div>
