@@ -130,7 +130,8 @@ export interface PulseResponse {
   tracks: PulseBucket[];
   busiestHours: PulseBucket[];
   signals: { key: string; full: number; crowded: number; other: number }[];
-  fingerprint: { term: string; score: number; mine: number; everyone: number }[];
+  fingerprint: { term: string; kind: "track" | "word"; score: number; mine: number; everyone: number }[];
   memoriesCount: number;
+  mySessions: number;
   notes: string[];
 }
