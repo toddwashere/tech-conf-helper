@@ -19,14 +19,14 @@ export async function POST(request: Request) {
 
 const listSchema = z.object({
   session_id: z.string().min(1).max(200),
-  type: z.enum(["transcript", "note", "summary"]).array().min(1),
+  type: z.enum(["transcript", "note", "summary", "rating", "contact"]).array().min(1),
 });
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsed = listSchema.safeParse({
     session_id: url.searchParams.get("session_id") ?? "",
-    type: url.searchParams.getAll("type").length ? url.searchParams.getAll("type") : ["transcript", "note", "summary"],
+    type: url.searchParams.getAll("type").length ? url.searchParams.getAll("type") : ["transcript", "note", "summary", "rating", "contact"],
   });
   if (!parsed.success) return Response.json({ error: "Pass session_id and optional type." }, { status: 400 });
   try {

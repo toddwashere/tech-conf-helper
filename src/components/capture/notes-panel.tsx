@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatTimeInZone } from "@/lib/time";
 import type { useNotes } from "./use-notes";
+import { VoiceInput } from "./voice-input";
 
 type NotesState = ReturnType<typeof useNotes>;
 
@@ -45,8 +46,9 @@ export function NotesPanel({ state }: { state: NotesState }) {
           placeholder="Write what matters. Saved on this device instantly."
           className="w-full resize-y rounded-lg border border-border bg-background p-3 text-base leading-relaxed outline-none placeholder:text-muted/70 focus:border-accent"
         />
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <span className="text-xs text-muted">⌘/Ctrl + Enter to add</span>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <VoiceInput label="Dictate" onText={(t) => setDraft((d) => (d.trim() ? `${d.trim()} ${t}` : t))} />
+          <span className="hidden text-xs text-muted sm:inline">⌘/Ctrl + Enter</span>
           <button
             type="submit"
             disabled={!draft.trim()}

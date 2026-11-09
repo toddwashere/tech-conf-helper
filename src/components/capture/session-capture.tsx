@@ -5,7 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { formatDayInZone, formatTimeInZone } from "@/lib/time";
 import type { SessionDoc } from "@/lib/types";
 import { CaptionPanel } from "./caption-panel";
+import { ContactsPanel } from "./contacts-panel";
 import { NotesPanel } from "./notes-panel";
+import { RatingPanel } from "./rating-panel";
 import { SummaryPanel } from "./summary-panel";
 import { useNotes } from "./use-notes";
 import { useTranscriptSync } from "./use-transcript-sync";
@@ -55,6 +57,11 @@ export function SessionCapture({ sessionId }: { sessionId: string }) {
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <CaptionPanel sync={transcript} />
         <NotesPanel state={notes} />
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <RatingPanel sessionId={sessionId} sessionTitle={load.kind === "ready" ? load.session.title : null} />
+        <ContactsPanel sessionId={sessionId} />
       </div>
 
       <div className="mt-6">

@@ -64,3 +64,14 @@ export async function saveSummaryMemory(es: Client, doc: MemoryDoc): Promise<voi
     refresh: "wait_for",
   });
 }
+
+export async function listConferenceMemories(es: Client, types: MemoryType[], size = 2000): Promise<MemoryDoc[]> {
+  const res = await es.search<MemoryDoc>({
+    index: INDEX.memories,
+    size,
+    query: { bool: { filter: [{ term: { conference: DEFAULT_CONFERENCE.id } }, { terms: { type: types } }] } },
+    sort: [{ created_at: "asc" }],
+    _source: SOURCE,
+  });
+  return res.hits.hits.flatMap((h) => (h._source ? [h._source] : []));
+}
