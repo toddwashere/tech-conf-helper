@@ -54,3 +54,35 @@ Schedule data comes from the public Sessionize feeds behind the [KubeCon + Cloud
 ## AI use disclosure
 
 This project was built with AI coding assistance (Claude Code). Planning, architecture decisions, and review were done by the team; AI-generated code was run and verified before merging. AI features in the app itself (summaries, voice commands, Ask) are documented as they land.
+
+## Elastic platform setup (agents, workflows, dashboard)
+
+`npm run elastic:setup` configures everything in Kibana and Elasticsearch through their APIs. It's idempotent, so rerun it any time. Pass step names to run only some of them, for example `npm run elastic:setup workflows agent`.
+
+| Step | What it creates |
+|---|---|
+| `enrich` | Enrich policy `conference-sessions-by-id`, so ES\|QL can join `plans` to session titles |
+| `signals` | The `room-signals` data stream, if the plan page hasn't created it yet |
+| `connector` | A Kibana OpenAI connector from `OPENAI_API_KEY`, set as the default AI connector |
+| `workflows` | `session-ended`, `trip-report`, and `room-full` from `scripts/elastic/workflows/*.yaml`, each checked with the workflow validator first |
+| `agent` | The Agent Builder agent `conference-copilot` with its `cc.*` tools: ES\|QL, index search, and workflow tools |
+| `dashboard` | The Kibana dashboard "Conference Pulse" (Vega panels: track mix, busiest hours, signals timeline, rooms map) |
+| `jina` | `sessions-jina`, re-embedded with Jina on EIS via `_reindex`, if a Jina endpoint exists |
+
+The in-app pages are `/ask` (chat through the Agent Builder converse API) and `/pulse` (live aggregations).
+
+### Ask your conference from Claude (MCP)
+
+Agent Builder serves the copilot's tools over MCP at `{KIBANA_URL}/api/agent_builder/mcp`. Add `?namespace=cc` to expose only the Conference Memory tools:
+
+```bash
+claude mcp add --transport http conference-memory "http://localhost:5601/api/agent_builder/mcp?namespace=cc" --header "Authorization: ApiKey $ES_API_KEY"
+```
+
+Then ask Claude "what's on at 3 PM Tuesday at KubeCon?" or "what did I learn about eBPF?". Claude calls `cc_sessions_in_window`, `cc_search_memories`, and the others. This works even without a Kibana LLM connector, because Claude is the LLM.
+
+### Embeddings: ELSER or Jina
+
+`EMBEDDINGS=elser` (default) searches `sessions` with ELSER, which runs locally and offline. `EMBEDDINGS=jina` searches `sessions-jina`, embedded by Jina on the Elastic Inference Service, which is multilingual: a Spanish query like "seguridad de contenedores en tiempo de ejecución" finds English talks. The search box can switch per query. Jina needs Cloud Connect: in Kibana, open Stack Management → Cloud Connect, paste an Elastic Cloud API key, then run `npm run elastic:setup jina`.
+
+Reranking (`text_similarity_reranker` over the RRF results) is a checkbox under the search box. Locally it uses `.rerank-v1-elasticsearch` on CPU, which takes about 3.5 s for the top 10 on a laptop, so it's off by default.

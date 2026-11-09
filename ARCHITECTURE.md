@@ -54,6 +54,25 @@ Conference Memory is one Next.js app on top of one Elasticsearch cluster. Elasti
 `POST /api/search` → `buildSearchRequest`:
 - With a query: `rrf` over (a) `multi_match` on title^3, speakers^2, topics^2, description and (b) `semantic` on `content`, both with the same filters (day, track, level, talks only).
 - Without a query: filtered list sorted by start time.
+- `rerank: true` wraps the RRF in a `text_similarity_reranker` (`.rerank-v1-elasticsearch` locally; Jina reranker on EIS) over the top 10 titles. It's opt-in because the local cross-encoder runs on CPU (about 3.5 s fresh, about 25 ms when cached).
+- `embeddings: "jina"` searches `sessions-jina`, a copy of `sessions` whose `content` is embedded by Jina on EIS (filled by `_reindex`). `EMBEDDINGS` sets the default.
+
+## Agent Builder, MCP, and Workflows
+
+`npm run elastic:setup` (in `scripts/elastic/`) creates everything through the Kibana and ES APIs:
+
+- **Agent** `conference-copilot`. ES|QL tools: `cc.sessions_in_window` (time range), `cc.my_plan` (plans joined to session titles with the enrich policy `conference-sessions-by-id`), `cc.room_status` (STATS over `room-signals`), `cc.track_mix`. Index-search tools: `cc.search_sessions` and `cc.search_memories`. Workflow tools: `cc.room_full`, `cc.session_ended`, and `cc.trip_report`.
+- **Ask** (`/ask` → `POST /api/ask`) calls `/api/agent_builder/converse`; Kibana runs the LLM and tool loop. The page shows the answer, the tools that ran, and the session titles they returned that the answer cites. `/api/ask/tool` runs the read-only ES|QL tools directly through `tools/_execute`, so the demo works with no LLM.
+- **MCP**: the same tools at `{KIBANA}/api/agent_builder/mcp?namespace=cc`, for Claude Desktop or Claude Code.
+- **Workflows** (YAML in `scripts/elastic/workflows/`, validated before upload):
+  - `room-full`: indexes a `full` signal into the data stream, then finds the next-ranked backup in the same plan slot.
+  - `session-ended`: reads the transcript and notes from `memories`, then `ai.summarize`, then writes the `summary` memory.
+  - `trip-report`: reads the summaries and notes plus the ES|QL track mix, then `ai.prompt`, then saves a `trip_report` memory.
+- **LLM connector**: an OpenAI connector from `OPENAI_API_KEY` if set; otherwise the one named by `KIBANA_LLM_CONNECTOR_ID` (for example, local Ollama). Workflow AI steps are pinned to it.
+
+## Data flow: pulse
+
+`GET /api/pulse` runs four aggregations in parallel: `terms` on tracks; a `date_histogram` on `starts_at` in America/Denver with `bucket_sort` for the busiest hours; a `date_histogram` × `terms` on `room-signals`; and the "fingerprint", which is `significant_terms` (tracks) plus `significant_text` (abstracts) over the sessions you planned or captured, against all talks. The Kibana dashboard `conference-pulse` shows the same data as Vega panels, plus a map of `rooms`.
 
 ## AI disclosure
 

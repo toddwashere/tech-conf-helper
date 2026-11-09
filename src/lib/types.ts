@@ -291,3 +291,57 @@ export interface TripReport {
   aiStatus: "ok" | "missing_key" | "error" | "skipped";
   aiMessage: string | null;
 }
+
+// --- WS-C: Elastic platform (embeddings profiles, reranking, Agent Builder, pulse) ---
+
+export type EmbeddingsProfile = "elser" | "jina";
+
+export interface SearchMeta {
+  profile: EmbeddingsProfile;
+  reranked: boolean;
+  tookMs: number;
+}
+
+export interface SearchOptions {
+  profile?: EmbeddingsProfile;
+  rerank?: boolean;
+}
+
+export interface AskToolCall {
+  toolId: string;
+  params: Record<string, unknown>;
+  resultTypes: string[];
+}
+
+export interface AskCitation {
+  id: string;
+  title: string;
+}
+
+export type AskResponse =
+  | {
+      status: "ok";
+      conversationId: string | null;
+      answer: string;
+      steps: AskToolCall[];
+      citations: AskCitation[];
+      tookMs: number;
+    }
+  | { status: "no_llm"; message: string }
+  | { status: "error"; message: string };
+
+export interface PulseBucket {
+  key: string;
+  count: number;
+}
+
+export interface PulseResponse {
+  totalSessions: number;
+  tracks: PulseBucket[];
+  busiestHours: PulseBucket[];
+  signals: { key: string; full: number; crowded: number; other: number }[];
+  fingerprint: { term: string; kind: "track" | "word"; score: number; mine: number; everyone: number }[];
+  memoriesCount: number;
+  mySessions: number;
+  notes: string[];
+}
