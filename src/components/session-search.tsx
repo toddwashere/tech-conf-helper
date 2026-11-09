@@ -60,11 +60,6 @@ export function SessionSearch() {
 
   return (
     <section>
-      <div className="mb-3 flex justify-end">
-        <Link href="/plan" className="rounded-lg border border-border px-3 py-2 text-sm text-muted hover:border-accent hover:text-foreground">
-          My plan →
-        </Link>
-      </div>
       <form
         className="flex flex-col gap-2 sm:flex-row"
         onSubmit={(e) => {
