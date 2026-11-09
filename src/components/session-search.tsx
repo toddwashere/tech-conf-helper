@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDayInZone, formatTimeInZone } from "@/lib/time";
 import type { SearchMeta, SearchResponse, SessionDoc } from "@/lib/types";
@@ -151,8 +152,13 @@ function SessionCard({ session }: { session: SessionDoc }) {
         </span>
         <span>{place}</span>
         {session.full && <span className="rounded bg-warn/15 px-2 py-0.5 text-warn">Full</span>}
+        <AddToPlan sessionId={session.id} />
       </div>
-      <h2 className="mt-1 text-lg font-semibold leading-snug">{session.title}</h2>
+      <h2 className="mt-1 text-lg font-semibold leading-snug">
+        <Link href={`/session/${encodeURIComponent(session.id)}`} className="hover:text-accent hover:underline">
+          {session.title}
+        </Link>
+      </h2>
       {session.speaker_names.length > 0 && <p className="text-sm text-muted">{session.speaker_names.join(", ")}</p>}
       {session.description && <p className="mt-2 line-clamp-3 text-sm text-foreground/80">{session.description}</p>}
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -163,5 +169,45 @@ function SessionCard({ session }: { session: SessionDoc }) {
         ))}
       </div>
     </li>
+  );
+}
+
+type AddState = { status: "idle" | "adding" | "error" } | { status: "added"; label: string };
+
+function AddToPlan({ sessionId }: { sessionId: string }) {
+  const [state, setState] = useState<AddState>({ status: "idle" });
+
+  async function add() {
+    setState({ status: "adding" });
+    try {
+      const res = await fetch("/api/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      setState({ status: "added", label: `Plan ${String.fromCharCode(65 + (body.added?.rank ?? 0))}` });
+    } catch {
+      setState({ status: "error" });
+    }
+  }
+
+  if (state.status === "added") {
+    return (
+      <Link href="/plan" className="ml-auto rounded-lg bg-accent/15 px-3 py-1 text-accent hover:underline">
+        Added as {state.label} · view plan
+      </Link>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={add}
+      disabled={state.status === "adding"}
+      className="ml-auto rounded-lg border border-accent/60 px-3 py-1 text-accent hover:bg-accent/10 disabled:opacity-50"
+    >
+      {state.status === "adding" ? "Adding…" : state.status === "error" ? "Retry add" : "+ Add to plan"}
+    </button>
   );
 }

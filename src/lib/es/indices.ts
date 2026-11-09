@@ -103,3 +103,58 @@ export async function ensureIndices(es: Client): Promise<string[]> {
   }
   return created;
 }
+
+// --- WS-A: rooms (geo) and room-signals (time-series data stream) ---
+
+export const ROOMS_INDEX = "rooms";
+export const ROOM_SIGNALS_STREAM = "room-signals";
+
+export const ROOMS_MAPPING: estypes.MappingTypeMapping = {
+  dynamic: "strict",
+  properties: {
+    id: keyword,
+    conference: keyword,
+    name: keyword,
+    building: keyword,
+    level: keyword,
+    location: { type: "geo_point" },
+  },
+};
+
+export const ROOM_SIGNALS_MAPPING: estypes.MappingTypeMapping = {
+  dynamic: "strict",
+  properties: {
+    "@timestamp": date,
+    conference: keyword,
+    session_id: keyword,
+    room: keyword,
+    building: keyword,
+    signal: keyword,
+    source: keyword,
+    location: { type: "geo_point" },
+  },
+};
+
+/** Creates the `rooms` index and the `room-signals` index template + data stream if they're missing. */
+export async function ensurePlanInfra(es: Client): Promise<string[]> {
+  const created: string[] = [];
+  if (!(await es.indices.exists({ index: ROOMS_INDEX }))) {
+    await es.indices.create({ index: ROOMS_INDEX, mappings: ROOMS_MAPPING });
+    created.push(ROOMS_INDEX);
+  }
+  if (!(await es.indices.existsIndexTemplate({ name: ROOM_SIGNALS_STREAM }))) {
+    await es.indices.putIndexTemplate({
+      name: ROOM_SIGNALS_STREAM,
+      index_patterns: [`${ROOM_SIGNALS_STREAM}*`],
+      data_stream: {},
+      priority: 500,
+      template: { mappings: ROOM_SIGNALS_MAPPING },
+    });
+    created.push(`${ROOM_SIGNALS_STREAM} template`);
+  }
+  if (!(await es.indices.exists({ index: ROOM_SIGNALS_STREAM }))) {
+    await es.indices.createDataStream({ name: ROOM_SIGNALS_STREAM });
+    created.push(ROOM_SIGNALS_STREAM);
+  }
+  return created;
+}

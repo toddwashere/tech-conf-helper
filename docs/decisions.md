@@ -33,12 +33,16 @@ Preferred: Elastic Managed LLM via EIS (Cloud Connect), if the trial exposes it.
 
 ELSER on this laptop embeds about 0.6 s per session, so a full import takes about 8 minutes. Re-imports skip unchanged sessions by hash. Don't run a full ELSER import live in the demo.
 
+## D7. Merging to main often
+
+`main` on GitHub is always runnable. Workstreams commit on their own branch at every working slice and report it. They don't push or merge themselves. The main planning chat merges each reported slice into `main` once `npm run ci` passes on the merged result, pushes, and tells the other workstreams to `git merge origin/main`. Aim for a merge every 45–60 minutes per workstream, not one big merge at the end.
+
 ## D6. Ownership boundaries for parallel work
 
 | Workstream | Owns | Must not touch |
 |---|---|---|
 | WS-A Plan + reroute + time/geo | `src/lib/plan/`, `src/app/plan/`, `src/app/api/plan/`, `src/lib/geo.ts`, `room-signals` | `src/lib/search.ts`, `src/app/session/` |
-| WS-B Capture | `src/app/session/`, `src/lib/capture/`, `src/app/api/memories/`, `src/components/capture/` | `src/lib/plan/`, `scripts/elastic/` |
+| WS-B Capture | `src/app/session/`, `src/lib/capture/`, `src/app/api/memories/`, `src/components/capture/`, `src/app/report/`, `src/app/api/report/` | `src/lib/plan/`, `scripts/elastic/` |
 | WS-C Elastic platform | `scripts/elastic/`, `src/lib/search.ts`, `src/lib/agent/`, `src/app/ask/`, `src/app/pulse/` | `src/lib/plan/`, `src/app/session/` |
 
 Shared files (`src/lib/es/indices.ts`, `src/lib/types.ts`): additive changes only, append your section, and expect a trivial merge.
