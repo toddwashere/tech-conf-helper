@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
     "import": "tsx --env-file=.env.local scripts/import.ts",
+    "seed:demo": "tsx --env-file=.env.local scripts/seed-demo.ts",
     "ci": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {

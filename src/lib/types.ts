@@ -243,3 +243,19 @@ export type SummarizeResult =
   | { status: "missing_key"; message: string }
   | { status: "empty"; message: string }
   | { status: "error"; message: string };
+
+export interface ActivityBucket {
+  start: string;
+  checkin: number;
+  crowded: number;
+  full: number;
+}
+
+export interface RoomActivity {
+  day: string;
+  until: string;
+  total: number;
+  simulated: number;
+  buckets: ActivityBucket[];
+  busiestRooms: { room: string; checkins: number; full: number }[];
+}
