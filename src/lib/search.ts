@@ -96,7 +96,8 @@ export function buildSearchRequest(
       }
     : hybrid;
 
-  return { index, size, retriever, _source: SEARCH_SOURCE_FIELDS };
+  // The reranker can only return what it rescored, so a reranked search is capped at the window.
+  return { index, size: options.rerank ? Math.min(size, RERANK_WINDOW) : size, retriever, _source: SEARCH_SOURCE_FIELDS };
 }
 
 export async function searchSessions(
