@@ -158,3 +158,18 @@ export async function ensurePlanInfra(es: Client): Promise<string[]> {
   }
   return created;
 }
+
+// --- WS-C: cached agent answers for the demo (keyed by normalized question) ---
+
+export const ASK_CACHE_INDEX = "ask-cache";
+
+export const ASK_CACHE_MAPPING: estypes.MappingTypeMapping = {
+  dynamic: "strict",
+  properties: {
+    key: keyword,
+    question: text,
+    response: { type: "object", enabled: false },
+    model: keyword,
+    created_at: date,
+  },
+};
