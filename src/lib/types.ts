@@ -81,3 +81,100 @@ export interface SearchResponse {
   total: number;
   hits: SessionHit[];
 }
+
+// --- WS-A: plans, room signals, geo, reroute ---
+
+export type RoomSignalKind = "full" | "crowded" | "checkin";
+
+export interface RoomSignalDoc {
+  "@timestamp": string;
+  conference: string;
+  session_id: string;
+  room: string;
+  building: string | null;
+  signal: RoomSignalKind;
+  source: string;
+  location?: GeoPoint;
+}
+
+export interface GeoPoint {
+  lat: number;
+  lon: number;
+}
+
+export interface RoomDoc {
+  id: string;
+  conference: string;
+  name: string;
+  building: string;
+  level: string | null;
+  location: GeoPoint;
+}
+
+export interface PlanDoc {
+  id: string;
+  conference: string;
+  slot_start: string;
+  slot_end: string;
+  session_id: string;
+  rank: number;
+  interest?: number;
+  reason?: string;
+  updated_at: string;
+}
+
+/** Why a session counts as full: the schedule feed says sold out, or someone sent a recent `full` signal. */
+export type FullReason = "sold_out" | "signal" | null;
+
+export interface PlanChoice {
+  rank: number;
+  label: string;
+  session: SessionDoc;
+  full: boolean;
+  fullReason: FullReason;
+  fullSince: string | null;
+}
+
+export interface RerouteCandidate {
+  session: SessionDoc;
+  score: number;
+  distanceM: number | null;
+  sameBuilding: boolean;
+}
+
+export interface RerouteResult {
+  kind: "backup" | "similar" | "none";
+  session: SessionDoc | null;
+  rank: number | null;
+  distanceM: number | null;
+  reason: string;
+}
+
+export interface PlanSlotView {
+  slotStart: string;
+  slotEnd: string;
+  choices: PlanChoice[];
+  conflictsWith: string[];
+  reroute: RerouteResult | null;
+}
+
+export interface PlanResponse {
+  now: string;
+  demoClock: boolean;
+  day: string | null;
+  slots: PlanSlotView[];
+}
+
+export interface NowNextItem {
+  session: SessionDoc;
+  status: "now" | "next";
+  minutesUntil: number;
+  distanceM: number | null;
+  full: boolean;
+}
+
+export interface NowNextResponse {
+  now: string;
+  from: string | null;
+  items: NowNextItem[];
+}
