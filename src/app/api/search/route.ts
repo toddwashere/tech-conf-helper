@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getEs } from "@/lib/es/client";
-import { searchSessions } from "@/lib/search";
+import { defaultProfile, searchSessions } from "@/lib/search";
 
 const bodySchema = z.object({
   q: z.string().max(500).default(""),
@@ -18,7 +18,10 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ error: "Invalid search request." }, { status: 400 });
   const { q, size, embeddings, rerank, ...filters } = parsed.data;
   try {
-    return Response.json(await searchSessions(getEs(), q, filters, size, { profile: embeddings, rerank }));
+    const profile = embeddings ?? defaultProfile();
+    // Jina's reranker runs on EIS GPUs (~0.1 s), so it's on by default there; the local CPU reranker stays opt-in.
+    const options = { profile, rerank: rerank ?? profile === "jina" };
+    return Response.json(await searchSessions(getEs(), q, filters, size, options));
   } catch (error) {
     console.error("[search] failed", error);
     const message = String(error);

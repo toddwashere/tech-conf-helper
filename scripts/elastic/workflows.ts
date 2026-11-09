@@ -28,7 +28,7 @@ export async function ensureWorkflows(connectorId?: string | null): Promise<stri
   for (const id of WORKFLOW_IDS) {
     const yaml = workflowYaml(id, connectorId);
     const check = await validateWorkflow(yaml);
-    if (!check.valid) throw new Error(`workflow ${id} is invalid: ${JSON.stringify(check.diagnostics)}`);
+    if (!check.valid) throw new Error(`workflow ${id} is invalid: ${JSON.stringify(check.diagnostics).slice(0, 600)}`);
     const existing = await kibana("GET", `/api/workflows/workflow/${id}`, undefined, { allow404: true });
     if (existing) {
       await kibana("PUT", `/api/workflows/workflow/${id}`, { yaml });

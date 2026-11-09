@@ -36,11 +36,28 @@ steps:
       size: 500
       _source: [type, text, starts_at_ms]
   - name: summarize
-    type: ai.summarize
+    type: ai.prompt
     with:
-      input: "Talk: {{ steps.get_session.output.hits.hits[0]._source.title }}\n\n{% for h in steps.get_memories.output.hits.hits %}[{{ h._source.type }}] {{ h._source.text }}\n{% endfor %}"
-      instructions: "Summarize this conference talk for the attendee who watched it. Start with one sentence, then 3-5 key takeaways as bullets, then any action items. Lines marked [note] are the attendee's own notes; weigh them heavily."
-      maxLength: 1200
+      systemPrompt: "You summarize conference talks for the attendee who watched them. Lines marked [note] are the attendee's own notes; weigh them heavily. Only use what is in the transcript and notes."
+      prompt: "Talk: {{ steps.get_session.output.hits.hits[0]._source.title }}\n\n{% for h in steps.get_memories.output.hits.hits %}[{{ h._source.type }}] {{ h._source.text }}\n{% endfor %}"
+      schema:
+        type: object
+        properties:
+          one_line:
+            type: string
+            description: One sentence on what the talk was about
+          takeaways:
+            type: array
+            items:
+              type: string
+            description: 3 to 5 key takeaways
+          action_items:
+            type: array
+            items:
+              type: string
+            description: Things the attendee should try or follow up on
+        required: [one_line, takeaways, action_items]
+  # Same document shape and id as the app's summarize path (src/lib/capture/summarize.ts), so both upsert one summary.
   - name: write_summary
     type: elasticsearch.index
     with:
@@ -53,6 +70,11 @@ steps:
         session_id: "{{ inputs.session_id }}"
         source: workflow:session-ended
         title: "Summary: {{ steps.get_session.output.hits.hits[0]._source.title }}"
-        text: "{{ steps.summarize.output.content }}"
-        content: "{{ steps.summarize.output.content }}"
+        text: "{{ steps.summarize.output.content.one_line }}\n\nKey takeaways:\n{% for t in steps.summarize.output.content.takeaways %}- {{ t }}\n{% endfor %}\nAction items:\n{% for a in steps.summarize.output.content.action_items %}- {{ a }}\n{% endfor %}"
+        content: "{{ steps.summarize.output.content.one_line }} {{ steps.summarize.output.content.takeaways | join: ' ' }}"
+        lang: en
+        metadata:
+          one_line: "{{ steps.summarize.output.content.one_line }}"
+          takeaways: "{{ steps.summarize.output.content.takeaways | json }}"
+          action_items: "{{ steps.summarize.output.content.action_items | json }}"
         created_at: "{{ execution.startedAt | date: '%Y-%m-%dT%H:%M:%S.%LZ' }}"

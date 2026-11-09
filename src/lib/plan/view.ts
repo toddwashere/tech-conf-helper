@@ -91,7 +91,7 @@ export async function buildPlanView(es: Client, day: string | null, now: Date, t
     if (!session) continue;
     const slot = grouped.get(d.slot_start) ?? { slotStart: d.slot_start, slotEnd: d.slot_end, choices: [] };
     const rank = slot.choices.length;
-    slot.choices.push({ rank, label: rankLabel(rank), session, ...fullness(session, signals) });
+    slot.choices.push({ rank, label: rankLabel(rank), session, note: d.reason ?? null, ...fullness(session, signals) });
     grouped.set(d.slot_start, slot);
   }
 

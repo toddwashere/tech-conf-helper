@@ -35,7 +35,7 @@ steps:
         room: "{{ steps.get_session.output.hits.hits[0]._source.room }}"
         building: "{{ steps.get_session.output.hits.hits[0]._source.building }}"
         signal: full
-        source: "{{ inputs.source }}"
+        source: "{{ inputs.source | default: 'workflow' }}"
   - name: plan_row
     type: elasticsearch.search
     with:

@@ -1,5 +1,6 @@
 import type { QueryTrace } from "@/components/query-inspector";
 
+
 export type SessionKind = "talk" | "logistics";
 
 export interface SessionLink {
@@ -170,6 +171,8 @@ export interface PlanChoice {
   full: boolean;
   fullReason: FullReason;
   fullSince: string | null;
+  /** Why you picked it, from the plan row. */
+  note?: string | null;
 }
 
 export interface RerouteCandidate {
@@ -210,6 +213,8 @@ export interface NowNextItem {
   minutesUntil: number;
   distanceM: number | null;
   full: boolean;
+  /** "Plan A" etc. when this talk is in your plan. */
+  planLabel?: string | null;
 }
 
 export interface NowNextResponse {
@@ -324,6 +329,7 @@ export interface SearchMeta {
   profile: EmbeddingsProfile;
   reranked: boolean;
   tookMs: number;
+  trace: QueryTrace[];
 }
 
 export interface SearchOptions {
@@ -335,6 +341,8 @@ export interface AskToolCall {
   toolId: string;
   params: Record<string, unknown>;
   resultTypes: string[];
+  /** The ES|QL the tool ran, when it was an ES|QL tool. */
+  esql: string | null;
 }
 
 export interface AskCitation {
@@ -368,4 +376,5 @@ export interface PulseResponse {
   memoriesCount: number;
   mySessions: number;
   notes: string[];
+  trace: QueryTrace[];
 }
