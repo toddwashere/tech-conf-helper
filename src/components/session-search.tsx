@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDayInZone, formatTimeInZone } from "@/lib/time";
 import type { SearchResponse, SessionDoc } from "@/lib/types";
@@ -148,7 +149,11 @@ function SessionCard({ session }: { session: SessionDoc }) {
         <span>{place}</span>
         {session.full && <span className="rounded bg-warn/15 px-2 py-0.5 text-warn">Full</span>}
       </div>
-      <h2 className="mt-1 text-lg font-semibold leading-snug">{session.title}</h2>
+      <h2 className="mt-1 text-lg font-semibold leading-snug">
+        <Link href={`/session/${encodeURIComponent(session.id)}`} className="hover:text-accent hover:underline">
+          {session.title}
+        </Link>
+      </h2>
       {session.speaker_names.length > 0 && <p className="text-sm text-muted">{session.speaker_names.join(", ")}</p>}
       {session.description && <p className="mt-2 line-clamp-3 text-sm text-foreground/80">{session.description}</p>}
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
