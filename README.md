@@ -12,7 +12,7 @@ Built at the [Cloud Native Hackathon](https://www.wemakedevs.org/hackathons/cnh)
 |---|---|
 | Schedule import (Sessionize feeds) with preview and live progress at `/import` | Done |
 | Hybrid talk search (keyword + semantic, RRF) | Done |
-| Plans A/B/C and room-full reroute | Planned |
+| Plans A/B/C, room-full reroute (time-series signals + geo + semantic), now/next | Done |
 | Live captions, notes, summary | Planned |
 | Talk to your data (voice/text) | Planned |
 | Trip report | Planned |
@@ -40,6 +40,14 @@ Requirements: Node 24, Docker.
    ```
 
 Checks: `npm run ci` (typecheck, lint, tests).
+
+### Reset before a demo
+
+```bash
+npm run demo:reset
+```
+
+It clears the plan and "Room full" reports, removes the seeded memories, then re-seeds the demo plan for Tue Nov 10, the simulated `room-signals` history, and the demo memories. Set `DEMO_NOW=2026-11-10T14:45:00-07:00` in `.env.local` to pin the clock (or add `?at=` to `/plan`). The click path is in [docs/demo-script.md](docs/demo-script.md).
 
 ## How it works
 

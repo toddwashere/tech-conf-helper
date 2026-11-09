@@ -171,6 +171,8 @@ export interface PlanChoice {
   full: boolean;
   fullReason: FullReason;
   fullSince: string | null;
+  /** Why you picked it, from the plan row. */
+  note?: string | null;
 }
 
 export interface RerouteCandidate {
@@ -211,6 +213,8 @@ export interface NowNextItem {
   minutesUntil: number;
   distanceM: number | null;
   full: boolean;
+  /** "Plan A" etc. when this talk is in your plan. */
+  planLabel?: string | null;
 }
 
 export interface NowNextResponse {

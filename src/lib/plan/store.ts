@@ -65,6 +65,11 @@ export async function addChoice(es: Client, session: SessionDoc, reason?: string
   const slotEnd = slot?.slotEnd ?? session.ends_at;
   const existing = slots.find((s) => s.slotStart === slotStart);
   const already = existing?.ids.indexOf(session.id) ?? -1;
+  // Already planned: keep its rank and note rather than overwriting the row.
+  if (already >= 0) {
+    const current = (await listPlanDocs(es)).find((d) => d.slot_start === slotStart && d.session_id === session.id);
+    if (current) return current;
+  }
   const doc: PlanDoc = {
     id: planDocId(slotStart, session.id),
     conference: CONF,
