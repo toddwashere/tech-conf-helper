@@ -27,7 +27,7 @@ Agents, tools, workflows, and dashboards are created by scripts in `scripts/elas
 
 ## D4. LLM
 
-The local cluster is onboarded to Cloud Connect, and EIS is enabled. Jina v5 embeddings and the Jina rerankers work. Every EIS chat/completion endpoint returns 403 on this trial, so the LLM comes from an OpenAI connector using `OPENAI_API_KEY`, which is pending from the user. Agent Builder converse accepts an inference endpoint ID as `connector_id`. Every AI feature needs a non-AI fallback (extractive highlights, grouped report), plus the MCP path where Claude itself is the LLM. Local Ollama models were tried and rejected: too slow, and too hard on the battery.
+The local cluster is onboarded to Cloud Connect, and EIS is enabled. Jina v5 embeddings (`sessions-jina`, default via `EMBEDDINGS=jina`) and the GPU Jina reranker (`.jina-reranker-v3.5`, default-on for Jina) work. **The LLM is the Elastic Managed LLM `.gp-llm-v2-chat_completion` through Kibana** (Agent Builder converse, workflow AI steps). Direct ES `_inference` chat calls return 403; only the Kibana path works. Claude Sonnet 5 on EIS works but hits trial quota (429), and /ask falls back across EIS LLMs. Each agent turn costs about 8k input tokens, so save quota for the demo. No OpenAI key is needed; `OPENAI_API_KEY` stays an optional fallback. Every AI feature needs a non-AI fallback (extractive highlights, grouped report), plus the MCP path where Claude itself is the LLM. Local Ollama models were tried and rejected: too slow, and too hard on the battery.
 
 ## D5. Embedding cost
 
