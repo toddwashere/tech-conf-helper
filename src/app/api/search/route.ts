@@ -21,7 +21,15 @@ export async function POST(request: Request) {
     const profile = embeddings ?? defaultProfile();
     // Jina's reranker runs on EIS GPUs (~0.1 s), so it's on by default there; the local CPU reranker stays opt-in.
     const options = { profile, rerank: rerank ?? profile === "jina" };
-    return Response.json(await searchSessions(getEs(), q, filters, size, options));
+    // Right after a restart the first semantic/rerank calls can fail while inference warms up; retry once.
+    const run = () => searchSessions(getEs(), q, filters, size, options);
+    const result = await run().catch(async (error) => {
+      if (/index_not_found|validation/i.test(String(error))) throw error;
+      console.warn("[search] first attempt failed, retrying once", String(error).slice(0, 200));
+      await new Promise((r) => setTimeout(r, 300));
+      return run();
+    });
+    return Response.json(result);
   } catch (error) {
     console.error("[search] failed", error);
     const message = String(error);

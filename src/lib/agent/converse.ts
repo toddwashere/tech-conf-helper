@@ -15,6 +15,7 @@ interface ConverseStep {
 
 interface ConverseResult {
   conversation_id?: string;
+  model_usage?: { connector_id?: string; model?: string; llm_calls?: number; input_tokens?: number; output_tokens?: number };
   steps?: ConverseStep[];
   response?: { message?: string };
 }
@@ -76,6 +77,15 @@ export async function askAgent(input: string, conversationId?: string): Promise<
       steps,
       citations: extractCitations(answer, toolSteps.flatMap((s) => s.results ?? [])),
       tookMs: Date.now() - started,
+      usage: res.model_usage
+        ? {
+            connectorId: res.model_usage.connector_id ?? null,
+            model: res.model_usage.model ?? null,
+            llmCalls: res.model_usage.llm_calls ?? null,
+            inputTokens: res.model_usage.input_tokens ?? null,
+            outputTokens: res.model_usage.output_tokens ?? null,
+          }
+        : null,
     };
   } catch (error) {
     if (error instanceof Error && (error.name === "TimeoutError" || /error calling connector|timeout/i.test(error.message))) {

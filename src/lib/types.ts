@@ -359,6 +359,14 @@ export interface AskCitation {
   title: string;
 }
 
+export interface AskUsage {
+  connectorId: string | null;
+  model: string | null;
+  llmCalls: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
 export type AskResponse =
   | {
       status: "ok";
@@ -367,6 +375,9 @@ export type AskResponse =
       steps: AskToolCall[];
       citations: AskCitation[];
       tookMs: number;
+      usage: AskUsage | null;
+      /** Set when the answer came from the ask-cache index instead of a live agent run. */
+      cachedAt?: string;
     }
   | { status: "no_llm"; message: string }
   | { status: "error"; message: string };

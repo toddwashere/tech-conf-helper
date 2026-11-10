@@ -48,7 +48,7 @@ export function AskChat() {
 
   const noLlm = turns.some((t) => t.reply?.status === "no_llm");
 
-  async function ask(question: string) {
+  async function ask(question: string, fresh = false) {
     if (!question.trim() || busy) return;
     setBusy(true);
     setInput("");
@@ -58,7 +58,7 @@ export function AskChat() {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: question, conversationId }),
+        body: JSON.stringify({ input: question, conversationId, fresh }),
       });
       reply = (await res.json()) as AskResponse;
     } catch {
@@ -107,7 +107,7 @@ export function AskChat() {
         {turns.map((turn, i) => (
           <li key={i} className="flex flex-col gap-2">
             <p className="self-end rounded-2xl bg-accent-strong/20 px-4 py-2">{turn.question}</p>
-            <Reply reply={turn.reply} />
+            <Reply reply={turn.reply} onAskLive={() => ask(turn.question, true)} />
           </li>
         ))}
       </ol>
@@ -162,7 +162,7 @@ export function AskChat() {
   );
 }
 
-function Reply({ reply }: { reply: AskResponse | null }) {
+function Reply({ reply, onAskLive }: { reply: AskResponse | null; onAskLive: () => void }) {
   if (!reply) return <p className="text-muted">Thinking with Agent Builder…</p>;
   if (reply.status === "no_llm")
     return <p className="rounded-lg border border-warn/40 bg-warn/10 p-4 text-sm text-warn">{reply.message}</p>;
@@ -171,16 +171,7 @@ function Reply({ reply }: { reply: AskResponse | null }) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <Markdown text={reply.answer || "(no answer)"} />
-      {reply.steps.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          {reply.steps.map((s, i) => (
-            <span key={i} className="rounded-full bg-surface-2 px-2 py-1 font-mono text-muted">
-              {s.toolId}
-            </span>
-          ))}
-          <span className="px-1 py-1 text-muted">{(reply.tookMs / 1000).toFixed(1)} s</span>
-        </div>
-      )}
+      <UnderTheHood reply={reply} onAskLive={onAskLive} />
       <QueryInspector
         traces={reply.steps.map((s) => ({
           label: `Tool ${s.toolId}`,
@@ -262,6 +253,57 @@ function McpCard() {
       >
         {copied ? "Copied" : "Copy command"}
       </button>
+    </div>
+  );
+}
+
+type OkReply = Extract<AskResponse, { status: "ok" }>;
+
+function llmLabel(reply: OkReply): string {
+  const u = reply.usage;
+  if (!u) return "Kibana default LLM";
+  const id = u.connectorId ?? "";
+  const managed = id.startsWith(".") ? "Elastic Managed LLM on EIS" : "Kibana connector";
+  return `${u.model ?? id} (${managed})`;
+}
+
+/** Two lines that show the Elastic machinery behind an answer: which LLM, how many calls, which tools. */
+function UnderTheHood({ reply, onAskLive }: { reply: OkReply; onAskLive: () => void }) {
+  const u = reply.usage;
+  const tokens = u?.inputTokens ? `${(u.inputTokens / 1000).toFixed(1)}k tokens in` : null;
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-xs text-muted">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-medium text-foreground">Elastic under the hood</span>
+        <span>Agent Builder · conference-copilot</span>
+        <span>·</span>
+        <span>{llmLabel(reply)}</span>
+        {u?.llmCalls ? <span>· {u.llmCalls} LLM calls</span> : null}
+        {tokens && <span>· {tokens}</span>}
+      </p>
+      <p className="mt-1 flex flex-wrap items-center gap-1.5">
+        <span>Tools:</span>
+        {reply.steps.length === 0 && <span>none</span>}
+        {reply.steps.map((s, i) => (
+          <span key={i} className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-accent">
+            {s.toolId}
+          </span>
+        ))}
+        <span>· {(reply.tookMs / 1000).toFixed(1)} s</span>
+        {reply.cachedAt && (
+          <>
+            <span
+              className="rounded bg-warn/15 px-1.5 py-0.5 font-mono text-warn"
+              title={`Answer cached in the ask-cache index at ${new Date(reply.cachedAt).toLocaleTimeString()}`}
+            >
+              cached
+            </span>
+            <button type="button" onClick={onAskLive} className="underline hover:text-foreground">
+              ask live
+            </button>
+          </>
+        )}
+      </p>
     </div>
   );
 }
