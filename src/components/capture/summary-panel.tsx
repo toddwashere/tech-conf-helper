@@ -5,7 +5,14 @@ import { QueryInspector, type QueryTrace } from "@/components/query-inspector";
 import type { MemoryDoc, SessionSummary, SummarizeResult } from "@/lib/types";
 
 // "saved" = a summary not made by either path here (e.g. seeded demo data); labeled neutrally.
-type Mode = "ai" | "extractive" | "saved";
+type Mode = "workflow" | "ai" | "extractive" | "saved";
+
+const MODE_LABEL: Record<Mode, string> = {
+  workflow: "Summarized by Elastic Workflows + Elastic Managed LLM",
+  ai: "AI summary (OpenAI)",
+  extractive: "Highlights (no AI)",
+  saved: "Summary",
+};
 
 type State =
   | { kind: "idle" }
@@ -38,7 +45,13 @@ export function SummaryPanel({ sessionId, beforeSummarize }: { sessionId: string
         const summary = memory ? fromMemory(memory) : null;
         if (memory && summary) {
           const mode: Mode =
-            memory.source === "extractive" ? "extractive" : memory.source.startsWith("openai:") ? "ai" : "saved";
+            memory.source === "extractive"
+              ? "extractive"
+              : memory.source.startsWith("workflow:")
+                ? "workflow"
+                : memory.source.startsWith("openai:")
+                  ? "ai"
+                  : "saved";
           setState({ kind: "ready", summary, fromCache: true, mode, notice: null, trace: [] });
         }
       })
@@ -90,7 +103,7 @@ export function SummaryPanel({ sessionId, beforeSummarize }: { sessionId: string
         )}
         {state.kind === "loading" && (
           <div className="flex flex-col gap-2" aria-label="Summarizing">
-            <p className="text-sm text-muted">Reading the transcript and your notes from Elasticsearch…</p>
+            <p className="text-sm text-muted">Running the session-ended Elastic Workflow over your transcript and notes…</p>
             <div className="h-4 w-3/4 animate-pulse rounded bg-surface-2" />
             <div className="h-4 w-2/3 animate-pulse rounded bg-surface-2" />
             <div className="h-4 w-1/2 animate-pulse rounded bg-surface-2" />
@@ -113,7 +126,7 @@ export function SummaryPanel({ sessionId, beforeSummarize }: { sessionId: string
                   state.mode === "extractive" ? "bg-warn/15 text-warn" : "bg-emerald-500/15 text-emerald-400"
                 }`}
               >
-                {state.mode === "extractive" ? "Highlights (no AI)" : state.mode === "ai" ? "AI summary" : "Summary"}
+                {MODE_LABEL[state.mode]}
               </span>
               {state.notice && <span className="text-xs text-muted">{state.notice}</span>}
             </div>

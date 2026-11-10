@@ -256,7 +256,7 @@ export type SummarizeResult =
       transcriptChunks: number;
       notes: number;
       /** "extractive" = picked from your transcript and notes by Elasticsearch, no model involved. */
-      mode: "ai" | "extractive";
+      mode: "workflow" | "ai" | "extractive";
       notice: string | null;
     }
   | { status: "missing_key"; message: string }
@@ -312,8 +312,17 @@ export interface TripReportGlance {
   followUps: { name: string; role: string | null; follow_up: string | null; profile_url: string | null; session_title: string }[];
 }
 
+export interface TripReportNarrative {
+  markdown: string;
+  /** e.g. "workflow:trip-report" */
+  source: string;
+  created_at: string;
+}
+
 export interface TripReport {
   glance: TripReportGlance;
+  /** Last written report from the `trip-report` Elastic Workflow, cached in `memories` (saves LLM quota). */
+  narrative: TripReportNarrative | null;
   days: TripReportDay[];
   counts: { sessions: number; notes: number; ratings: number; contacts: number; summaries: number };
   ai: TripReportAi | null;

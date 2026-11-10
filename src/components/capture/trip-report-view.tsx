@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDayInZone, formatTimeInZone } from "@/lib/time";
+import { QueryInspector, type QueryTrace } from "@/components/query-inspector";
 import type { TripReport, TripReportGlance, TripReportSession } from "@/lib/types";
+import { SimpleMarkdown } from "./simple-markdown";
 
 const TZ = "America/Denver";
 
-type Load = { kind: "loading" } | { kind: "ready"; report: TripReport } | { kind: "error"; message: string };
+type Report = TripReport & { trace?: QueryTrace[] };
+type Load = { kind: "loading" } | { kind: "ready"; report: Report } | { kind: "error"; message: string };
 
-async function fetchReport(withAi: boolean): Promise<TripReport> {
+async function fetchReport(withAi: boolean): Promise<Report> {
   const res = await fetch("/api/report", { method: withAi ? "POST" : "GET" });
-  const body = (await res.json()) as TripReport & { error?: string };
+  const body = (await res.json()) as Report & { error?: string };
   if (!res.ok) throw new Error(body.error ?? "Report unavailable");
   return body;
 }
@@ -99,7 +102,7 @@ export function TripReportView() {
           disabled={writing}
           className="rounded-lg bg-accent-strong px-4 py-2 text-sm font-medium text-background hover:bg-accent disabled:opacity-50"
         >
-          {writing ? "Writing…" : report.ai ? "Rewrite with AI" : "Write it up with AI"}
+          {writing ? "Elastic Workflow is writing…" : report.narrative || report.ai ? "Rewrite the report" : "Write the report"}
         </button>
       </div>
 
@@ -112,6 +115,28 @@ export function TripReportView() {
           {report.aiMessage}
         </p>
       )}
+
+      {report.narrative && (
+        <section aria-labelledby="narrative-heading" className="rounded-xl border border-emerald-500/30 bg-surface p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="narrative-heading" className="mr-auto text-sm font-semibold uppercase tracking-wider text-emerald-400">
+              Written report
+            </h2>
+            <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-400">
+              {report.narrative.source.startsWith("workflow:")
+                ? "Summarized by Elastic Workflows + Elastic Managed LLM"
+                : report.narrative.source}
+            </span>
+            <span className="text-xs text-muted">
+              {formatDayInZone(report.narrative.created_at, TZ)} {formatTimeInZone(report.narrative.created_at, TZ)}
+            </span>
+          </div>
+          <div className="mt-3">
+            <SimpleMarkdown markdown={report.narrative.markdown} />
+          </div>
+        </section>
+      )}
+      <QueryInspector traces={report.trace} />
 
       <Glance glance={report.glance} />
 

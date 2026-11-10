@@ -1,10 +1,29 @@
 import { z } from "zod";
 import { getEs } from "@/lib/es/client";
 import { INDEX } from "@/lib/es/indices";
-import type { SessionDoc, TripReport, TripReportAi } from "@/lib/types";
+import type { QueryTrace } from "@/components/query-inspector";
+import { DEFAULT_CONFERENCE } from "@/lib/conference";
+import type { MemoryDoc, SessionDoc, TripReport, TripReportAi, TripReportNarrative } from "@/lib/types";
 import { listConferenceMemories } from "./memories";
 import { TRIP_REPORT_SYSTEM_PROMPT, tripReportUserPrompt } from "./prompts";
 import { groupTripReport, type SessionInfo } from "./trip-report-group";
+import { runWorkflowAndWait } from "./workflows";
+
+// The id the `trip-report` workflow writes (scripts/elastic/workflows/trip-report.yaml).
+const NARRATIVE_ID = `trip_report:${DEFAULT_CONFERENCE.id}`;
+
+async function loadNarrative(): Promise<TripReportNarrative | null> {
+  try {
+    const res = await getEs().get<MemoryDoc>({ index: INDEX.memories, id: NARRATIVE_ID, _source_excludes: ["content"] });
+    const d = res._source;
+    return d?.text ? { markdown: d.text, source: d.source, created_at: d.created_at } : null;
+  } catch (error) {
+    if ((error as { meta?: { statusCode?: number } }).meta?.statusCode === 404) return null;
+    throw error;
+  }
+}
+
+export type TripReportResponse = TripReport & { trace?: QueryTrace[] };
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 const MAX_PROMPT_CHARS = 60_000;
@@ -57,24 +76,36 @@ async function callOpenAi(apiKey: string, user: string): Promise<unknown> {
  * The one entry point for trip reports. Always returns the plain grouped view from `memories`; with `withAi` and an
  * OPENAI_API_KEY it adds a validated narrative on top. WS-C may route the AI part to an Elastic Workflow later.
  */
-export async function generateTripReport({ withAi }: { withAi: boolean }): Promise<TripReport> {
+export async function generateTripReport({ withAi }: { withAi: boolean }): Promise<TripReportResponse> {
   const memories = await listConferenceMemories(getEs(), ["summary", "note", "rating", "contact"]);
   const ids = [...new Set(memories.flatMap((m) => (m.session_id ? [m.session_id] : [])))];
   const sessions = await loadSessions(ids);
   const grouped = groupTripReport(memories, sessions);
-  const report: TripReport = { ...grouped, ai: null, aiStatus: "skipped", aiMessage: null };
+  const report: TripReport = { ...grouped, narrative: await loadNarrative(), ai: null, aiStatus: "skipped", aiMessage: null };
   if (!withAi) return report;
+  if (!grouped.counts.sessions) {
+    return { ...report, aiStatus: "error", aiMessage: "Nothing captured yet. Add notes, ratings, or summaries first." };
+  }
 
+  // 1. Elastic Workflow `trip-report`: reads memories (+ ES|QL track mix), writes the report with the Elastic
+  //    Managed LLM, and saves it to `memories`. We wait, then read it back.
+  const run = await runWorkflowAndWait("trip-report", { conference: DEFAULT_CONFERENCE.id });
+  const trace = [run.trace];
+  if (run.ok) {
+    const narrative = await loadNarrative();
+    if (narrative) return { ...report, narrative, aiStatus: "ok", trace };
+  }
+  console.warn("[trip-report] workflow failed", run.status, run.error);
+
+  // 2. OpenAI directly, only when a key is set.
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     return {
       ...report,
-      aiStatus: "missing_key",
-      aiMessage: "The written report needs an OpenAI key. Add OPENAI_API_KEY to .env.local and restart. Your grouped report is below.",
+      aiStatus: "error",
+      aiMessage: "The Elastic Workflow couldn't write the report right now (LLM quota or Kibana unavailable). Your grouped report is below.",
+      trace,
     };
-  }
-  if (!grouped.counts.sessions) {
-    return { ...report, aiStatus: "error", aiMessage: "Nothing captured yet. Add notes, ratings, or summaries first." };
   }
 
   const titles = new Map(grouped.days.flatMap((d) => d.sessions.map((s) => [s.id, s.title] as const)));

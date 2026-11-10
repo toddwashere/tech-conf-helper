@@ -75,3 +75,13 @@ export async function listConferenceMemories(es: Client, types: MemoryType[], si
   });
   return res.hits.hits.flatMap((h) => (h._source ? [h._source] : []));
 }
+
+export async function getSummaryMemory(es: Client, id: string): Promise<MemoryDoc | null> {
+  try {
+    const res = await es.get<MemoryDoc>({ index: INDEX.memories, id, _source_excludes: ["content"] });
+    return res._source ?? null;
+  } catch (error) {
+    if ((error as { meta?: { statusCode?: number } }).meta?.statusCode === 404) return null;
+    throw error;
+  }
+}
