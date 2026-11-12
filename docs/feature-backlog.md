@@ -32,6 +32,7 @@ Planning notes for the Cloud Native Hackathon (Nov 9, 2026). No code yet.
 | 9 | Practice it | 3 | Generate a 20–30 minute hands-on exercise and 3 review questions from a talk's transcript. Label it as a draft. Optional: links to real workshops and tutorials. |
 | 10 | Pre-talk brief | 1 | Links from the feed (GitHub, slides, website), GitHub activity for the session's CNCF project tags, news, and a prefilled X search link. The AI ranks links but never makes them up. Save results for demo sessions in advance. |
 | 11 | MCP server | 3 | Expose feature 5's tools so Claude Code or Claude Desktop can query and update your conference data. About 20 minutes if the tools already exist. |
+| 12 | Tap-to-define jargon in live captions | 2 | While captions run, known technical terms (e.g. "eBPF", "sidecar", "CRD", "DRA") are underlined automatically. Tap one, or any word, to get a 1–2 sentence definition and a "Learn more" link. See the design note below. |
 
 ## Skip
 
@@ -47,3 +48,12 @@ Planning notes for the Cloud Native Hackathon (Nov 9, 2026). No code yet.
 - **The AI sits at the edges.** It maps fields, extracts data, summarizes, and turns speech into tool calls. Ranking, conflict checks, and rerouting are plain code.
 - **Everything is a document in Elasticsearch.** Sessions, speakers, notes, transcripts, contacts, links, and past-conference notes. Each one carries `conference`, `session_id`, and `source` fields, so a single query can search across all of them.
 - **Battery.** Dark mode saves real power on OLED screens but little on most laptop LCDs. Bigger wins are no background network polling and no heavy animations. Note that conference Wi-Fi is the stronger reason to save notes locally.
+
+### Feature 12: tap-to-define jargon (post-hackathon)
+
+- **Glossary index in Elasticsearch:** a `glossary` index of terms, aliases, short definition, "Learn more" URL, source, and difficulty. Seed it from an openly licensed glossary such as the CNCF Cloud Native Glossary (check its license and attribute it), plus the CNCF project names already in the schedule's topics.
+- **Auto-highlight:** as each final caption chunk arrives, match it against the glossary with a fast terms/phrase query, or with a percolator so the stored terms act as the "queries" run against live text. Matched words get a dotted underline. Show at most a few per minute so it doesn't get noisy.
+- **Tap any word:** a known term opens its card. An unknown word falls back to semantic search over the glossary (Jina, so it works across languages). If there's still no match, the LLM gives a short definition grounded in the talk's abstract and nearby transcript. Label that "AI-generated", and only link to real sources, never invented URLs.
+- **Personalize:** "I know this" hides a term from now on, and "Save" stores it as a `memories` doc (`type: "term"`, with `session_id` and timestamp). Saved terms show up in the trip report as "Terms I learned."
+- **Accessibility tie-in (Merge Forward):** helps people new to the field and non-native speakers. Definitions follow the caption language when translation is on.
+- **Elastic angle:** percolator or terms matching on a live stream, semantic fallback, and a per-user knowledge set, all in Elasticsearch.
